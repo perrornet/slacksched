@@ -1,86 +1,137 @@
 # schduler
 
-Go service that connects Slack (Socket Mode) to local **Agent Client Protocol (ACP)** providers (for example Codex or Cursor) over newline-delimited JSON-RPC on stdio. Each new Slack thread gets its own workspace directory, `AGENTS.md`, and **one dedicated provider process**. Only the final assistant reply is posted back to Slack; `session/update` streaming is absorbed in memory.
+Slack **Socket Mode** service that forwards each thread to a local **Agent Client Protocol (ACP)**-style or Cursor/Codex provider over stdio. One workspace and one provider process per Slack thread; only the **final** assistant reply is posted to the channel.
 
-## Prerequisites
+---
 
-- Go 1.22+
-- Slack app with **Bot Token** and **App-Level Token** (connections:write) for Socket Mode
-- A locally installed provider binary (e.g. `codex`, `cursor-agent`) matching `configs/example.yaml`
+## Overview
 
-## Configuration
+| | |
+|--|--|
+| **Inbound** | Slack events → filtered, deduped, optional thread transcript |
+| **Outbound** | `chat.postMessage` with Markdown → Slack mrkdwn conversion |
+| **Providers** | `codex_app_server`, `cursor_cli`, or `acp` (see below) |
 
-- YAML path defaults to `configs/example.yaml` (`-config` flag).
+Tokens and secrets are **never** stored in config files tracked in Git; the YAML references **environment variable names** only (see [`configs/example.yaml`](configs/example.yaml)).
 
-### Logging
+---
 
-- `logging.level`: `debug`, `info`, `warn`, or `error` (default `info` when omitted).
-- `logging.acp_trace`: when `true`, every newline-delimited JSON-RPC message on the provider stdio is logged at **Info** with key `acp_trace` and attributes `direction=send|recv` and `raw=<line>`. Lines longer than ~256KiB are truncated for safety. This is independent of what gets posted to Slack (Slack still only sees the final reply).
-- `logging.slack_trace`: when `true`, `slack_inbound` and `slack_outbound` logs include a short `text_preview` / `outbound_text_preview` (trimmed to a few hundred runes). When `false`, only metadata and lengths are logged.
-- `logging.file_path`: when non-empty, the same text-format logs are **also** appended to this file (stdout remains enabled). Parent directories are created if missing. Leave empty to log only to the terminal.
-
-**Slack flow logs** (at Info): `slack_inbound` when a user message is accepted and enqueued; `slack_outbound` after `chat.postMessage` (includes `posted_ts` on success, or `err` on failure); `slack_inbound_skipped` when the filter rejects an event.
-
-### Environment variables
-
-| Variable            | Purpose                                      |
-|---------------------|----------------------------------------------|
-| `SLACK_BOT_TOKEN`   | Bot OAuth token (`xoxb-...`)                 |
-| `SLACK_APP_TOKEN`   | App-level token for Socket Mode (`xapp-...`) |
-
-Token **names** can be overridden in YAML via `slack.bot_token_env` and `slack.app_token_env`.
-
-### Slack behaviour
-
-- **DMs** only from users listed in `slack.allowed_dm_user_ids`.
-- **Channels** restricted when `allowed_channel_ids` is non-empty; if empty, all channels are allowed subject to `require_mention_in_channels`.
-- Once a thread has an active session, further messages in that thread are accepted without another mention.
-- With **`slack.thread_replies_in_prompt: true`**, the service calls [`conversations.replies`](https://api.slack.com/methods/conversations.replies) for the thread root (`root_thread_ts`), prepends a short transcript (excluding the triggering message) to the provider prompt, then appends `Message to answer:` and the current user text. Grant history scopes (`channels:history`, `groups:history`, `im:history` as needed) and reinstall the app so the bot can read thread messages.
-- Retries are deduped using `event_id` and `client_msg_id` (short TTL).
-
-### Provider profiles
-
-`providers.profiles` defines `transport`, `command`, `args`, optional `model`, `env`, and optional `mode` label.
-
-- **`transport: codex_app_server`** (recommended for Codex): runs [`codex app-server --listen stdio://`](https://developers.openai.com/codex/app-server) with JSON-RPC `initialize` → `thread/start` → per-message `turn/start`, matching [multica-ai/multica `codex.go`](https://github.com/multica-ai/multica/blob/main/server/pkg/agent/codex.go). `args` are **extra** flags only; `--listen stdio://` is always injected; a duplicate `--listen` in `args` is stripped.
-- **`transport: acp`**: long-lived stdio [**Agent Client Protocol**](https://agentclientprotocol.com/) (`session/new`, `session/prompt`). Use for agents that speak ACP, not for the interactive `codex acp` TUI.
-- **`transport: cursor_cli`**: [Cursor CLI](https://cursor.com/docs/cli/headless) one-shot per message: `cursor-agent chat -p "…" --output-format stream-json --yolo …`, same argv shape as [multica `cursor.go`](https://github.com/multica-ai/multica/blob/main/server/pkg/agent/cursor.go). Core flags are built in code; `args` are filtered extras only. Optional `model` sets `--model`.
-
-### Troubleshooting: `stdin is not a terminal` (stderr)
-
-The scheduler talks to the provider over **pipes** (stdin/stdout are not a TTY). Some CLI entrypoints still call `isatty(stdin)` and abort if they think they are not in an interactive terminal.
-
-- This is **not** a bug in the Slack side; fix the **provider entrypoint**.
-- For **Codex**, prefer **`transport: codex_app_server`** (`codex app-server --listen stdio://`) instead of an interactive subcommand such as `codex acp` that expects a terminal.
-- For **ACP-only agents**, use **`transport: acp`** with a binary that implements **ACP** over stdio.
-- For **Cursor**, use **`transport: cursor_cli`** (`cursor-agent chat -p …`); do not use a mode that expects a TTY on stdin.
-
-## Run
+## Quick start
 
 ```bash
-export SLACK_BOT_TOKEN=xoxb-...
-export SLACK_APP_TOKEN=xapp-...
+export SLACK_BOT_TOKEN=xoxb-...    # Bot User OAuth Token
+export SLACK_APP_TOKEN=xapp-...    # App-level token (Socket Mode)
+
 go run ./cmd/schduler -config configs/example.yaml
 ```
 
-## Tests
+Edit `configs/example.yaml`: set Slack allowlists (`allowed_dm_user_ids`, `allowed_channel_ids`, etc.) and provider command paths (`cursor-agent`, `codex`, …).
+
+---
+
+## Requirements
+
+- **Go** 1.22+
+- **Slack app** with Bot token and App-Level token (`connections:write` for Socket Mode)
+- **Provider binary** on `PATH` matching your profile (`cursor-agent`, `codex`, …)
+
+---
+
+## Configuration
+
+Default config path: [`configs/example.yaml`](configs/example.yaml). Override with `-config`.
+
+### Logging (`logging`)
+
+| Key | Meaning |
+|-----|---------|
+| `level` | `debug` / `info` / `warn` / `error` (default `info`) |
+| `acp_trace` | Log every JSON-RPC line on provider stdio (truncated when huge) |
+| `slack_trace` | Add short text previews to `slack_inbound` / `slack_outbound` logs |
+| `file_path` | Also append logs to this file (optional) |
+
+### Environment variables (secrets)
+
+| Variable | Role |
+|----------|------|
+| `SLACK_BOT_TOKEN` | Bot OAuth token (`xoxb-…`) |
+| `SLACK_APP_TOKEN` | Socket Mode app token (`xapp-…`) |
+
+Names can be overridden in YAML: `slack.bot_token_env`, `slack.app_token_env`.
+
+### Slack routing & threads
+
+- **DMs**: only if the sender’s Slack user ID is listed in `slack.allowed_dm_user_ids`.
+- **Channels**: optional `allowed_channel_ids`; if empty, channels are allowed subject to `require_mention_in_channels`.
+- **Thread follow-ups**: once a session exists, further messages in the thread need no new mention.
+- **`thread_replies_in_prompt`**: when `true`, loads `conversations.replies` and prepends a transcript (needs history scopes + reinstall).
+
+Info-level logs: `slack_inbound`, `slack_outbound`, `slack_inbound_skipped` (filtered).
+
+### Provider profiles (`providers.profiles`)
+
+Each profile sets `transport`, `command`, optional `args`, `model`, `env`, `mode`.
+
+| `transport` | Use case |
+|---------------|----------|
+| **`codex_app_server`** | Codex via `codex app-server --listen stdio://` (JSON-RPC thread/turn). Extra `args` only; duplicate `--listen` is stripped. |
+| **`acp`** | Long-lived ACP over stdio (`session/new`, `session/prompt`). |
+| **`cursor_cli`** | One-shot Cursor CLI: `cursor-agent chat … --output-format stream-json`. Core flags are built in; `args` are extras only. |
+
+---
+
+## Prebuilt binaries
+
+Pushes to **`main`** run [`.github/workflows/release.yml`](.github/workflows/release.yml): Linux and macOS **amd64** and **arm64** artifacts with **SHA256** checksums are attached to a **GitHub Release**.
+
+---
+
+## Run (details)
+
+```bash
+go run ./cmd/schduler -config configs/example.yaml
+```
+
+Build a static binary locally (example):
+
+```bash
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o schduler ./cmd/schduler
+```
+
+---
+
+## Development
 
 ```bash
 go mod tidy
 go test ./...
 ```
 
-If module checksum lookup hangs, try `GOSUMDB=off GOPROXY=direct go mod tidy`.
+If checksum lookup hangs: `GOSUMDB=off GOPROXY=direct go mod tidy`.
 
-## Layout
+---
 
-- `cmd/schduler` — entrypoint
-- `internal/config` — YAML + validation
-- `internal/slackapp` — Socket Mode, filtering, final `chat.postMessage`
-- `internal/scheduler` — per-thread FIFO, idle timeout, workspace + provider lifecycle
-- `internal/provider` — ACP stdio, **Cursor CLI** (`cursor_cli`), **Codex app-server** (`codex_app_server`)
-- `internal/acp` — JSON-RPC newline client
-- `internal/workspace` — session directories and `AGENTS.md`
-- `internal/messagefilter` — Slack policy + dedupe
-- `internal/finalanswer` — assistant text from `session/update`
-- `internal/session` — Slack thread key type
+## Project layout
+
+| Path | Role |
+|------|------|
+| `cmd/schduler` | Entrypoint |
+| `internal/config` | YAML loading |
+| `internal/slackapp` | Socket Mode, filters, `chat.postMessage` |
+| `internal/scheduler` | Per-thread queue, workspace + provider lifecycle |
+| `internal/provider` | ACP, Cursor CLI, Codex app-server |
+| `internal/acp` | Newline-delimited JSON-RPC client |
+| `internal/workspace` | Session dirs, `AGENTS.md` |
+| `internal/messagefilter` | Policy + dedupe |
+| `internal/finalanswer` | Final assistant text from streaming |
+| `internal/session` | Slack thread key |
+
+---
+
+## Troubleshooting: `stdin is not a terminal`
+
+The scheduler uses **pipes** (no TTY). Providers that call `isatty(stdin)` and exit are misconfigured for headless use:
+
+- Prefer **`transport: codex_app_server`** instead of an interactive `codex acp` TTY flow.
+- For Cursor, use **`transport: cursor_cli`** (`cursor-agent chat -p …`).
+- For custom agents, use a binary that speaks **ACP** on stdio with **`transport: acp`**.

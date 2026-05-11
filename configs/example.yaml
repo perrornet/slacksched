@@ -19,8 +19,8 @@ slack:
 
   # 允许通过 DM 触发调度的用户 ID（Slack User ID，以 U 开头）；不在列表中的用户 DM 会被忽略
   # 若留空列表，则不会接受任何 DM（与代码过滤逻辑一致）
-  allowed_dm_user_ids:
-    - U02RDHUV2DS
+  # 在 Slack 用户档案里「⋯」→ Copy member ID 填入下方；示例仓库不要提交真实 ID
+  allowed_dm_user_ids: []
   # 允许在其中发起新对话的频道 ID（C 开头）。留空 [] = 不限制频道，仍受 require_mention / 已绑定线程等规则约束
   allowed_channel_ids: []
   # 在频道里每条入站消息是否必须 @ 提及本应用（含同一线程内的后续回复；DM 不受影响）
