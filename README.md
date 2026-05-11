@@ -12,8 +12,6 @@ Slack **Socket Mode** service that forwards each thread to a local **Agent Clien
 | **Outbound** | `chat.postMessage` with Markdown → Slack mrkdwn conversion |
 | **Providers** | `codex_app_server`, `cursor_cli`, or `acp` (see below) |
 
-Tokens and secrets are **never** stored in config files tracked in Git; the YAML references **environment variable names** only (see [`configs/example.yaml`](configs/example.yaml)).
-
 ---
 
 ## Quick start
@@ -130,13 +128,3 @@ If checksum lookup hangs: `GOSUMDB=off GOPROXY=direct go mod tidy`.
 | `internal/messagefilter` | Policy + dedupe |
 | `internal/finalanswer` | Final assistant text from streaming |
 | `internal/session` | Slack thread key |
-
----
-
-## Troubleshooting: `stdin is not a terminal`
-
-The scheduler uses **pipes** (no TTY). Providers that call `isatty(stdin)` and exit are misconfigured for headless use:
-
-- Prefer **`transport: codex_app_server`** instead of an interactive `codex acp` TTY flow.
-- For Cursor, use **`transport: cursor_cli`** (`cursor-agent chat -p …`).
-- For custom agents, use a binary that speaks **ACP** on stdio with **`transport: acp`**.
