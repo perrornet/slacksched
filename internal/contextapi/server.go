@@ -16,17 +16,27 @@ import (
 
 // Handler serves GET /v1/slack/thread/messages with Bearer auth against Registry.
 type Handler struct {
-	api      *slack.Client
-	reg      *Registry
-	log      *slog.Logger
-	serveMux *http.ServeMux
+	api        *slack.Client
+	botToken   string
+	httpClient *http.Client
+	reg        *Registry
+	log        *slog.Logger
+	serveMux   *http.ServeMux
 }
 
 // NewHandler builds the HTTP handler tree.
-func NewHandler(api *slack.Client, reg *Registry, log *slog.Logger) http.Handler {
-	h := &Handler{api: api, reg: reg, log: log}
+// botToken is used only for the read-only Slack Web API proxy (never exposed to agents).
+func NewHandler(api *slack.Client, botToken string, reg *Registry, log *slog.Logger) http.Handler {
+	h := &Handler{
+		api:        api,
+		botToken:   strings.TrimSpace(botToken),
+		httpClient: &http.Client{},
+		reg:        reg,
+		log:        log,
+	}
 	m := http.NewServeMux()
 	m.HandleFunc("/v1/slack/thread/messages", h.handleThreadMessages)
+	m.HandleFunc("POST /v1/slack/web-api/", h.handleSlackWebAPIProxy)
 	m.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\n"))

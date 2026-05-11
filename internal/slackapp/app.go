@@ -178,8 +178,12 @@ func (a *App) dispatch(teamID, channelID, rootTS, userID, text, eventID, trigger
 	}
 	userText := text
 	if strings.TrimSpace(a.contextAPIURL) != "" {
-		userText = fmt.Sprintf("[Slack 线程上下文 API — 详见本会话工作区 `references/slack-context-api.md`]\nteam_id=%s\nchannel_id=%s\nroot_thread_ts=%s\ntrigger_message_ts=%s\n---\n%s",
-			teamID, channelID, rootTS, triggerTS, text)
+		agentMD := strings.TrimSpace(a.cfg.Scheduler.AgentMDFilename)
+		if agentMD == "" {
+			agentMD = "AGENTS.md"
+		}
+		userText = fmt.Sprintf("[Slack 线程 — 会话约束与 HTTP API 说明见工作区 `%s`（文首与文末由调度器生成）]\nteam_id=%s\nchannel_id=%s\nroot_thread_ts=%s\ntrigger_message_ts=%s\n---\n%s",
+			agentMD, teamID, channelID, rootTS, triggerTS, text)
 	}
 	promptText := userText
 	if a.cfg.Slack.ThreadRepliesInPrompt {

@@ -82,7 +82,7 @@ func main() {
 			os.Exit(1)
 		}
 		srv := &http.Server{
-			Handler:           contextapi.NewHandler(api, ctxReg, log),
+			Handler:           contextapi.NewHandler(api, botTok, ctxReg, log),
 			ReadHeaderTimeout: 10 * time.Second,
 		}
 		go func() {

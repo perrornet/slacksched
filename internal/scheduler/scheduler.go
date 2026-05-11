@@ -70,6 +70,7 @@ type Scheduler struct {
 // New validates config and builds a scheduler.
 // ctxReg and ctxBaseURL enable the on-demand Slack thread HTTP API (empty base URL disables).
 // sessionBot is written once into AGENTS.md when a new session workspace is created (UserID non-empty).
+// Session constraints and Slack HTTP API docs are generated into AGENTS.md by workspace.CreateSessionWorkspace.
 func New(cfg *config.Config, log *slog.Logger, fac Factory, ctxReg *contextapi.Registry, ctxBaseURL string, sessionBot workspace.SessionBotIdentity) (*Scheduler, error) {
 	pName, err := cfg.DefaultProviderProfile()
 	if err != nil {
@@ -200,6 +201,7 @@ func (w *worker) run() {
 					w.s.cfg.Scheduler.AgentMDFilename,
 					w.s.cfg.Scheduler.AppendSystemPrompt,
 					w.s.cfg.Scheduler.SlackMrkdwnGuidePath,
+					w.s.ctxBaseURL,
 					w.s.sessionBot,
 				)
 				if err != nil {
@@ -213,13 +215,6 @@ func (w *worker) run() {
 				var bearer string
 				if w.s.ctxReg != nil && w.s.ctxBaseURL != "" {
 					bearer = contextapi.NewToken()
-					if err := workspace.WriteSlackContextAPIReference(path, w.s.ctxBaseURL); err != nil {
-						_ = provider.CleanupWorkspace(w.s.cfg, ws)
-						ws = ""
-						job.Done("", fmt.Errorf("slack context api doc: %w", err))
-						resetIdle()
-						continue
-					}
 					w.s.ctxReg.Register(bearer, w.key)
 					extraEnv = []string{
 						"SCHDULER_CONTEXT_API_URL=" + w.s.ctxBaseURL,
