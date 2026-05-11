@@ -1,0 +1,46 @@
+# Runtime: process logs, session workspaces, copied refs/templates
+.scheduler/
+
+# Local/private YAML (machine-specific paths, user IDs, experiments)
+local/
+
+# Built binary (when compiled in repo root)
+/schduler
+
+# Go build & test artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+coverage.html
+*.coverprofile
+profile.cov
+
+# Go workspace (optional local module overrides)
+go.work
+go.work.sum
+
+# Secrets and local env
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors / IDEs
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# Temporary / scratch
+tmp/
+temp/
