@@ -58,6 +58,9 @@ scheduler:
     常规步骤不要反复请用户批准。
     仅当任务本身含糊或确实被阻塞时，再提一个简短的澄清问题。
 
+  # 可选：首个成功的 Provider 请求会在 Slack 消息前拼接该 Markdown（ACP 无独立 system 字段时用于首轮说明）
+  # first_turn_prompt_md_path: configs/first-turn.prompt.example.md
+
   # Provider 进程在最后一次完成回复后的空闲多久后关闭（与 session_idle_timeout 取较短者参与空闲判定）
   provider_idle_timeout: 12h
   # 关闭 Provider 时 SIGTERM 后等待多久再 SIGKILL

@@ -80,6 +80,10 @@ type SchedulerConfig struct {
 	// SlackMrkdwnGuidePath is optional. When set, that file is copied into each new session workspace
 	// as references/slack-mrkdwn-guide.md (for sirkitree-style Slack mrkdwn docs bundled in-repo).
 	SlackMrkdwnGuidePath string `yaml:"slack_mrkdwn_guide_path"`
+	// FirstTurnPromptMDPath is optional. When set, file contents are prepended to the first successful
+	// Provider prompt for a new workspace session (ACP/Cursor/Codex), before the Slack-sourced message.
+	// ACP session/prompt has no separate system-role field in our client; use this instead of AGENTS.md for ephemeral instructions.
+	FirstTurnPromptMDPath string `yaml:"first_turn_prompt_md_path"`
 }
 
 // ProvidersConfig selects a default profile and defines commands.
@@ -199,6 +203,12 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("scheduler.slack_mrkdwn_guide_path must be a readable file: %s", guide)
 		}
 	}
+	firstTurn := strings.TrimSpace(c.Scheduler.FirstTurnPromptMDPath)
+	if firstTurn != "" {
+		if st, err := os.Stat(firstTurn); err != nil || st.IsDir() {
+			return fmt.Errorf("scheduler.first_turn_prompt_md_path must be a readable file: %s", firstTurn)
+		}
+	}
 	if c.Scheduler.ProviderIdleTimeout.Duration() <= 0 {
 		return fmt.Errorf("scheduler.provider_idle_timeout must be positive")
 	}
@@ -252,6 +262,12 @@ func (c *Config) Validate() error {
 	absTpl, err := filepath.Abs(tpl)
 	if err == nil {
 		c.Scheduler.AgentMDTemplatePath = absTpl
+	}
+	c.Scheduler.FirstTurnPromptMDPath = firstTurn
+	if firstTurn != "" {
+		if absFTP, err := filepath.Abs(firstTurn); err == nil {
+			c.Scheduler.FirstTurnPromptMDPath = absFTP
+		}
 	}
 	return nil
 }

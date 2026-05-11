@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -123,6 +124,10 @@ type worker struct {
 
 	// contextBearerToken is registered with ctxReg for this worker (Context API); empty if disabled.
 	contextBearerToken string
+
+	// first turn prompt (from FirstTurnPromptMDPath); consumed after first successful Prompt.
+	firstTurnPrefix  string
+	firstTurnPending bool
 }
 
 func newWorker(s *Scheduler, key session.Key) *worker {
@@ -235,6 +240,21 @@ func (w *worker) run() {
 				}
 				prov = h
 				w.contextBearerToken = bearer
+
+				w.firstTurnPrefix = ""
+				w.firstTurnPending = false
+				if ftp := strings.TrimSpace(w.s.cfg.Scheduler.FirstTurnPromptMDPath); ftp != "" {
+					b, rerr := os.ReadFile(ftp)
+					if rerr != nil {
+						if w.s.log != nil {
+							w.s.log.Warn("first_turn_prompt_md", "path", ftp, "err", rerr)
+						}
+					} else {
+						w.firstTurnPrefix = string(b)
+						w.firstTurnPending = strings.TrimSpace(w.firstTurnPrefix) != ""
+					}
+				}
+
 				w.s.log.Info("provider ready",
 					"slack_session_key", w.key.String(),
 					"workspace_path", path,
@@ -245,7 +265,11 @@ func (w *worker) run() {
 			}
 			pctx, cancel := context.WithTimeout(ctx, w.s.cfg.Scheduler.PromptTimeout.Duration())
 			pctx = provider.ContextWithStreamPhaseCallback(pctx, job.OnStreamPhase)
-			text, _, err := prov.Prompt(pctx, job.Text)
+			promptText := job.Text
+			if w.firstTurnPending && strings.TrimSpace(w.firstTurnPrefix) != "" {
+				promptText = workspace.ComposeFirstTurnPrompt(w.firstTurnPrefix, job.Text)
+			}
+			text, _, err := prov.Prompt(pctx, promptText)
 			cancel()
 			if err != nil {
 				w.s.log.Info("prompt failed",
@@ -255,6 +279,9 @@ func (w *worker) run() {
 				)
 				job.Done("", err)
 			} else {
+				if w.firstTurnPending {
+					w.firstTurnPending = false
+				}
 				job.Done(text, nil)
 			}
 			resetIdle()
