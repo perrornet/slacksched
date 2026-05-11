@@ -1,7 +1,5 @@
 # slacksched
 
-Go module: [`github.com/perrornet/slacksched`](https://github.com/perrornet/slacksched) — rename the GitHub repo from `schduler` to **`slacksched`** if you still use the old name, so the module path and clone URL match.
-
 Slack **Socket Mode** service that forwards each thread to a local **Agent Client Protocol (ACP)**-style or Cursor/Codex provider over stdio. One workspace and one provider process per Slack thread; only the **final** assistant reply is posted to the channel.
 
 ---
