@@ -11,13 +11,13 @@ import (
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
 
-	"schduler/internal/config"
-	"schduler/internal/messagefilter"
-	"schduler/internal/scheduler"
-	"schduler/internal/session"
-	"schduler/internal/slackassistant"
-	"schduler/internal/slackmrkdwn"
-	"schduler/internal/slackthread"
+	"github.com/perrornet/slacksched/internal/config"
+	"github.com/perrornet/slacksched/internal/messagefilter"
+	"github.com/perrornet/slacksched/internal/scheduler"
+	"github.com/perrornet/slacksched/internal/session"
+	"github.com/perrornet/slacksched/internal/slackassistant"
+	"github.com/perrornet/slacksched/internal/slackmrkdwn"
+	"github.com/perrornet/slacksched/internal/slackthread"
 )
 
 // App wires Socket Mode to the scheduler.
@@ -30,7 +30,7 @@ type App struct {
 	filter         *messagefilter.Filter
 	botToken       string
 	selfMentionRE  *regexp.Regexp
-	contextAPIURL  string // set when schduler exposes local Slack Context HTTP API
+	contextAPIURL  string // set when slacksched exposes local Slack Context HTTP API
 }
 
 // New builds the Slack app. botToken is the xoxb- token for Web API calls such as assistant.threads.setStatus.

@@ -3,7 +3,7 @@ package contextapi
 import (
 	"testing"
 
-	"schduler/internal/session"
+	"github.com/perrornet/slacksched/internal/session"
 )
 
 func TestRegistryRoundTrip(t *testing.T) {

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"schduler/internal/config"
-	"schduler/internal/session"
-	"schduler/internal/workspace"
+	"github.com/perrornet/slacksched/internal/config"
+	"github.com/perrornet/slacksched/internal/session"
+	"github.com/perrornet/slacksched/internal/workspace"
 )
 
 type fakeRunner struct {

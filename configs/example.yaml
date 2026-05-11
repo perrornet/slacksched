@@ -6,7 +6,7 @@ logging:
   acp_trace: true
   slack_trace: true
   # 除终端外，将相同 slog 文本追加写入该路径（便于 tail / 事后排查）；留空则只打 stdout
-  file_path: .scheduler/schduler.log
+  file_path: .scheduler/slacksched.log
 
 # Slack Socket Mode 与应用侧路由（令牌仍放在环境变量里，此处只写变量名）
 slack:

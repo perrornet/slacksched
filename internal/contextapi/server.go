@@ -11,7 +11,7 @@ import (
 
 	"github.com/slack-go/slack"
 
-	"schduler/internal/slackthread"
+	"github.com/perrornet/slacksched/internal/slackthread"
 )
 
 // Handler serves GET /v1/slack/thread/messages with Bearer auth against Registry.

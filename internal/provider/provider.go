@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"schduler/internal/acp"
-	"schduler/internal/config"
-	"schduler/internal/finalanswer"
-	"schduler/internal/workspace"
+	"github.com/perrornet/slacksched/internal/acp"
+	"github.com/perrornet/slacksched/internal/config"
+	"github.com/perrornet/slacksched/internal/finalanswer"
+	"github.com/perrornet/slacksched/internal/workspace"
 )
 
 // Handle is a running provider session (ACP long-lived process, or cursor_cli state).
@@ -113,7 +113,7 @@ func Start(ctx context.Context, log *slog.Logger, prof config.ProviderProfile, a
 		ProtocolVersion:    "1",
 		ClientCapabilities: json.RawMessage(`{"fs":{"readTextFile":true,"writeTextFile":true},"terminal":false}`),
 		ClientInfo: &acp.Implementation{
-			Name:    "schduler",
+			Name:    "slacksched",
 			Version: "0.1.0",
 		},
 	}

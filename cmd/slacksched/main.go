@@ -17,11 +17,11 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/socketmode"
 
-	"schduler/internal/config"
-	"schduler/internal/contextapi"
-	"schduler/internal/scheduler"
-	"schduler/internal/slackapp"
-	"schduler/internal/workspace"
+	"github.com/perrornet/slacksched/internal/config"
+	"github.com/perrornet/slacksched/internal/contextapi"
+	"github.com/perrornet/slacksched/internal/scheduler"
+	"github.com/perrornet/slacksched/internal/slackapp"
+	"github.com/perrornet/slacksched/internal/workspace"
 )
 
 func main() {

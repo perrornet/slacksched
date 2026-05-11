@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"schduler/internal/config"
+	"github.com/perrornet/slacksched/internal/config"
 )
 
 func startCursorCLI(log *slog.Logger, prof config.ProviderProfile, absWorkspace string, acpTrace bool, extraEnv []string) (*Handle, error) {

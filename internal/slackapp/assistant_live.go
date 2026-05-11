@@ -3,8 +3,8 @@ package slackapp
 import (
 	"strings"
 
-	"schduler/internal/config"
-	"schduler/internal/slackassistant"
+	"github.com/perrornet/slacksched/internal/config"
+	"github.com/perrornet/slacksched/internal/slackassistant"
 )
 
 // defaultAssistantStatusSuffix is the base API "status" line: Slack renders it as

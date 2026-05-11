@@ -1,4 +1,6 @@
-# schduler
+# slacksched
+
+Go module: [`github.com/perrornet/slacksched`](https://github.com/perrornet/slacksched) — rename the GitHub repo from `schduler` to **`slacksched`** if you still use the old name, so the module path and clone URL match.
 
 Slack **Socket Mode** service that forwards each thread to a local **Agent Client Protocol (ACP)**-style or Cursor/Codex provider over stdio. One workspace and one provider process per Slack thread; only the **final** assistant reply is posted to the channel.
 
@@ -22,7 +24,7 @@ Tokens and secrets are **never** stored in config files tracked in Git; the YAML
 export SLACK_BOT_TOKEN=xoxb-...    # Bot User OAuth Token
 export SLACK_APP_TOKEN=xapp-...    # App-level token (Socket Mode)
 
-go run ./cmd/schduler -config configs/example.yaml
+go run ./cmd/slacksched -config configs/example.yaml
 ```
 
 Edit `configs/example.yaml`: set Slack allowlists (`allowed_dm_user_ids`, `allowed_channel_ids`, etc.) and provider command paths (`cursor-agent`, `codex`, …).
@@ -82,20 +84,25 @@ Each profile sets `transport`, `command`, optional `args`, `model`, `env`, `mode
 
 ## Prebuilt binaries
 
-Pushes to **`main`** run [`.github/workflows/release.yml`](.github/workflows/release.yml): Linux and macOS **amd64** and **arm64** artifacts with **SHA256** checksums are attached to a **GitHub Release**.
+Creating a **version tag** (e.g. `v1.0.0`) and pushing it runs [`.github/workflows/release.yml`](.github/workflows/release.yml): Linux and macOS **amd64** and **arm64** artifacts with **SHA256** checksums are attached to a **GitHub Release** for that tag.
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
 
 ---
 
 ## Run (details)
 
 ```bash
-go run ./cmd/schduler -config configs/example.yaml
+go run ./cmd/slacksched -config configs/example.yaml
 ```
 
 Build a static binary locally (example):
 
 ```bash
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o schduler ./cmd/schduler
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o slacksched ./cmd/slacksched
 ```
 
 ---
@@ -115,7 +122,7 @@ If checksum lookup hangs: `GOSUMDB=off GOPROXY=direct go mod tidy`.
 
 | Path | Role |
 |------|------|
-| `cmd/schduler` | Entrypoint |
+| `cmd/slacksched` | Entrypoint |
 | `internal/config` | YAML loading |
 | `internal/slackapp` | Socket Mode, filters, `chat.postMessage` |
 | `internal/scheduler` | Per-thread queue, workspace + provider lifecycle |

@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"sync"
 
-	"schduler/internal/session"
+	"github.com/perrornet/slacksched/internal/session"
 )
 
 // Registry maps a session-only bearer token to a Slack thread key.

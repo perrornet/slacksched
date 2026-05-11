@@ -21,8 +21,8 @@ func WriteSlackContextAPIReference(workspaceDir, baseURL string) error {
 	path := filepath.Join(refDir, "slack-context-api.md")
 
 	var b strings.Builder
-	b.WriteString("# Slack 线程上下文 HTTP API（schduler）\n\n")
-	b.WriteString("本会话工作区对应**一条** Slack 线程。为节省 token，请通过 schduler 暴露的 HTTP API **按需**拉取更早的消息，不要凭空臆测历史。\n\n")
+	b.WriteString("# Slack 线程上下文 HTTP API（slacksched）\n\n")
+	b.WriteString("本会话工作区对应**一条** Slack 线程。为节省 token，请通过 slacksched 暴露的 HTTP API **按需**拉取更早的消息，不要凭空臆测历史。\n\n")
 	b.WriteString("## 环境变量\n\n")
 	b.WriteString("- `SCHDULER_CONTEXT_API_URL` — 基础地址：")
 	b.WriteString(baseURL)

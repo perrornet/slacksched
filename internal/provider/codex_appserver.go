@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"schduler/internal/config"
+	"github.com/perrornet/slacksched/internal/config"
 )
 
 type codexAppConn struct {
@@ -135,8 +135,8 @@ func startCodexAppServer(ctx context.Context, log *slog.Logger, prof config.Prov
 	defer cancel()
 	if _, err := c.request(initCtx, "initialize", map[string]any{
 		"clientInfo": map[string]any{
-			"name":    "schduler",
-			"title":   "schduler",
+			"name":    "slacksched",
+			"title":   "slacksched",
 			"version": "0.1.0",
 		},
 		"capabilities": map[string]any{"experimentalApi": true},

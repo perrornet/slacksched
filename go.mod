@@ -1,4 +1,4 @@
-module schduler
+module github.com/perrornet/slacksched
 
 go 1.22
 

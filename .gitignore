@@ -5,7 +5,7 @@
 local/
 
 # Built binary (when compiled in repo root)
-/schduler
+/slacksched
 
 # Go build & test artifacts
 *.exe

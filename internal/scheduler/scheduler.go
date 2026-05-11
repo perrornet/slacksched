@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"schduler/internal/config"
-	"schduler/internal/contextapi"
-	"schduler/internal/provider"
-	"schduler/internal/session"
-	"schduler/internal/workspace"
+	"github.com/perrornet/slacksched/internal/config"
+	"github.com/perrornet/slacksched/internal/contextapi"
+	"github.com/perrornet/slacksched/internal/provider"
+	"github.com/perrornet/slacksched/internal/session"
+	"github.com/perrornet/slacksched/internal/workspace"
 )
 
 // Job is one queued Slack user message for a thread.
