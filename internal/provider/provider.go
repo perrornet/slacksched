@@ -141,7 +141,6 @@ func Start(ctx context.Context, log *slog.Logger, prof config.ProviderProfile, a
 }
 
 // Prompt runs one user turn; returns visible assistant text.
-// For the first successful turn after a new session, the scheduler may prepend scheduler.first_turn_prompt_md_path (see workspace.ComposeFirstTurnPrompt).
 func (h *Handle) Prompt(ctx context.Context, userText string) (string, string, error) {
 	if h.transport == "cursor_cli" {
 		return h.promptCursorCLI(ctx, userText)

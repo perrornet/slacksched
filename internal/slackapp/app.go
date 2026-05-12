@@ -18,6 +18,7 @@ import (
 	"github.com/perrornet/slacksched/internal/slackassistant"
 	"github.com/perrornet/slacksched/internal/slackmrkdwn"
 	"github.com/perrornet/slacksched/internal/slackthread"
+	"github.com/perrornet/slacksched/internal/workspace"
 )
 
 // App wires Socket Mode to the scheduler.
@@ -176,19 +177,55 @@ func (a *App) dispatch(teamID, channelID, rootTS, userID, text, eventID, trigger
 	if text == "" {
 		return
 	}
-	userText := text
-	if strings.TrimSpace(a.contextAPIURL) != "" {
-		agentMD := strings.TrimSpace(a.cfg.Scheduler.AgentMDFilename)
-		if agentMD == "" {
-			agentMD = "AGENTS.md"
+	ctx := context.Background()
+	isIM := strings.HasPrefix(channelID, "D")
+	channelName := ""
+	if !isIM {
+		if ch, err := a.api.GetConversationInfoContext(ctx, &slack.GetConversationInfoInput{ChannelID: channelID}); err != nil {
+			if a.log != nil {
+				a.log.Warn("slack_conversation_info", "err", err, "channel_id", channelID)
+			}
+		} else if ch != nil {
+			channelName = strings.TrimSpace(ch.Name)
+			if ch.IsIM {
+				isIM = true
+			}
 		}
-		userText = fmt.Sprintf("[Slack 线程 — 会话约束与 HTTP API 说明见工作区 `%s`（文首与文末由调度器生成）]\nteam_id=%s\nchannel_id=%s\nroot_thread_ts=%s\ntrigger_message_ts=%s\n---\n%s",
-			agentMD, teamID, channelID, rootTS, triggerTS, text)
 	}
-	promptText := userText
+	var threadPrior string
 	if a.cfg.Slack.ThreadRepliesInPrompt {
-		promptText = slackthread.BuildPromptWithThreadContext(context.Background(), a.api, a.log, channelID, rootTS, triggerTS, userText,
+		tr, err := slackthread.TranscriptExcluding(ctx, a.api, channelID, rootTS, triggerTS,
 			a.cfg.Slack.ThreadRepliesMaxMessages, a.cfg.Slack.ThreadRepliesMaxChars)
+		if err != nil {
+			if a.log != nil {
+				a.log.Warn("slack_thread_replies", "err", err, "channel_id", channelID, "root_thread_ts", rootTS)
+			}
+		} else {
+			threadPrior = tr
+		}
+	}
+	slackCtx := workspace.SlackRuntimeContext{
+		TeamID:                teamID,
+		ChannelID:             channelID,
+		ChannelName:           channelName,
+		IsIM:                  isIM,
+		RootThreadTS:          rootTS,
+		TriggerMessageTS:      triggerTS,
+		ThreadPriorTranscript: threadPrior,
+	}
+
+	promptText := text
+	if a.cfg.Slack.TurnEnvelopeEnabled() {
+		promptText = buildSlackTurnEnvelope(
+			a.cfg.Scheduler.AgentMDFilename,
+			teamID, channelID, rootTS, triggerTS, eventID, userID,
+			text,
+		)
+	}
+
+	var afterBootstrap string
+	if strings.TrimSpace(workspace.BuildSessionBootstrapMarkdown()) != "" {
+		afterBootstrap = promptText
 	}
 	if a.cfg.Slack.AssistantStatus && a.botToken != "" {
 		statusLine := buildLiveStatusLine(defaultAssistantStatusSuffix(&a.cfg.Slack), nil)
@@ -215,8 +252,10 @@ func (a *App) dispatch(teamID, channelID, rootTS, userID, text, eventID, trigger
 		"root_thread_ts", rootTS,
 		"event_id", eventID,
 		"text_len", runeLen(text),
-		"thread_replies_in_prompt", a.cfg.Slack.ThreadRepliesInPrompt && promptText != text,
+		"thread_prior_in_agent_md", a.cfg.Slack.ThreadRepliesInPrompt && strings.TrimSpace(threadPrior) != "",
+		"turn_envelope", a.cfg.Slack.TurnEnvelopeEnabled(),
 		"provider_prompt_len", runeLen(promptText),
+		"after_bootstrap_len", runeLen(afterBootstrap),
 	}
 	if a.cfg.Logging.SlackTrace {
 		inbound = append(inbound, "text_preview", previewRunes(text, maxSlackTextPreviewRunes))
@@ -314,11 +353,13 @@ func (a *App) dispatch(teamID, channelID, rootTS, userID, text, eventID, trigger
 			ChannelID:    channelID,
 			RootThreadTS: rootTS,
 		},
-		UserID:        userID,
-		Text:          promptText,
-		EventID:       eventID,
-		Done:          done,
-		OnStreamPhase: onStreamPhase,
+		UserID:               userID,
+		Text:                 promptText,
+		AfterBootstrapPrompt: afterBootstrap,
+		SlackContext:         slackCtx,
+		EventID:              eventID,
+		Done:                 done,
+		OnStreamPhase:        onStreamPhase,
 	})
 }
 

@@ -1,83 +1,78 @@
+# slacksched 示例配置。Slack 令牌只写在环境变量里，此处只写变量名，勿把 xoxb/xapp 写入仓库。
+
 logging:
+  # slog 级别：debug | info | warn | error；留空等价于 info
   level: info
+  # 为 true 时打印 Provider 标准输入输出上的每条 JSON-RPC（大时会截断）
   acp_trace: true
+  # 为 true 时在 slack_inbound / slack_outbound 日志里附带截断后的消息预览
   slack_trace: true
-  # 除终端外，将相同 slog 文本追加写入该路径（便于 tail / 事后排查）；留空则只打 stdout
+  # 可选：除终端外，把相同文本日志追加写入该文件（不存在则创建）
+  # file_path: .scheduler/slacksched.log
 
-# Slack Socket Mode 与应用侧路由（令牌仍放在环境变量里，此处只写变量名）
 slack:
-  # Bot User OAuth Token 所在的环境变量名（值形如 xoxb-...，勿写进仓库）
+  # Bot User OAuth Token（xoxb-…）所在环境变量名
   bot_token_env: SLACK_BOT_TOKEN
-  # App-Level Token，用于 Socket Mode（值形如 xapp-...）
+  # App-Level Token（xapp-…，Socket Mode）所在环境变量名
   app_token_env: SLACK_APP_TOKEN
-  # 是否在频道中「同时发送到主频道」展示 bot 回复（多数场景为 false，仅线程内可见）
+  # 为 true 时 Bot 回复也出现在频道主时间线；多数场景用 false，仅在线程内可见
   default_reply_broadcast: false
-
-  # 允许通过 DM 触发调度的用户 ID（Slack User ID，以 U 开头）；不在列表中的用户 DM 会被忽略
-  # 若留空列表，则不会接受任何 DM（与代码过滤逻辑一致）
-  # 在 Slack 用户档案里「⋯」→ Copy member ID 填入下方；示例仓库不要提交真实 ID
-  allowed_dm_user_ids:
-    - U02RDHUV2DS
-  # 允许在其中发起新对话的频道 ID（C 开头）。留空 [] = 不限制频道，仍受 require_mention / 已绑定线程等规则约束
+  # 私聊（DM）允许的发送者 Slack User ID（U…）。为空则不接受任何 DM
+  allowed_dm_user_ids: []
+  # 允许发起会话的频道 ID（C…）。为空 [] 表示在满足下方提及规则等前提下任意频道均可
   allowed_channel_ids: []
-  # 在频道里每条入站消息是否必须 @ 提及本应用（含同一线程内的后续回复；DM 不受影响）
+  # 频道内是否每条消息都必须 @ 本应用（含同线程后续回复）；IM 不受此限制
   require_mention_in_channels: true
 
-  # Slack Assistant 线程状态（assistant.threads.setStatus）：在 Provider 运行期间显示「Bot 名 + status」；成功 postMessage 后由 Slack 自动清除；发帖失败时会用空 status 再调一次以清掉指示器
-  # 需 Bot 具备 chat:write（或过渡期 assistant:write），见 https://api.slack.com/methods/assistant.threads.setStatus
-  # Status suffix Slack shows as "<app name> is …"; live mode also appends "— tools: a, b, c". Defaults in code are English.
+  # 为 true 时在 Provider 运行期间调用 assistant.threads.setStatus；发帖成功后由 Slack 清状态
   assistant_status: true
+  # 状态后缀文案（Slack 展示为「应用名 is …」）；空则使用内置英文默认
   assistant_status_text: "Working on your request…"
-  # When assistant_live_status is false, these are loading_messages; when true, built-in English carousel strings are used
+  # assistant_live_status 为 false 时的轮播 loading 文案（最多 10 条）；live 为 true 时常被内置文案覆盖
   assistant_loading_messages: []
-  # Cursor stream-json + Codex item/* refresh status + loading_messages
+  # 为 true 时根据 Cursor stream-json / Codex 流式事件刷新状态与 loading 文案
   assistant_live_status: true
 
-  # true：每次把 root_thread 历史拼进 prompt（费 token，无需再调 API）。false：依赖当前消息 + 按需调用本机上下文 HTTP API（见工作区 AGENTS.md）
+  # 为 true 时：在每次 Prompt 前把同线程历史写入工作区 AGENTS.md「Slack 会话上下文」（不塞进用户原文）
   thread_replies_in_prompt: false
-  # 非空则在本机起 HTTP 上下文 API（例如 127.0.0.1:9847）；与 thread_replies_in_prompt: false 搭配最省 token。接口说明由程序写入工作区 agent_md 文末，与二进制一致（模板 `.scheduler/AGENTS.template.md` 只保留原则性提示）
+  # 本机监听地址，非空则启动按需拉取线程的 HTTP Context API（需 Bot 具备 conversations.replies 等权限）
   context_api_listen: "127.0.0.1:9847"
-  # 0 表示使用默认上限（100 条、约 12000 字）
+  # 拉取线程时的条数上限；0 表示使用内置默认（100）
   thread_replies_max_messages: 100
+  # 写入 AGENTS 的线程摘录字符上限；0 表示使用内置默认（约 12000）
   thread_replies_max_chars: 12000
-  # 出站前将 Agent 常见 Markdown（**粗体**、[链接](url)、~~删除~~ 等）转为 Slack mrkdwn；false 则原文发帖
+  # 为 false 时关闭出站 Markdown → Slack mrkdwn 转换；留空或未写则默认开启
   convert_outbound_markdown: true
+  # 为 false 时关闭「系统信封」（定位字段 + 本条聚焦 + 引用块内原文）；留空或未写则默认开启
+  # turn_envelope: true
 
-# 会话工作区、空闲超时、提示词等调度参数
 scheduler:
-  # 每个 Slack 会话（按线程）创建工作区目录的根路径，相对路径相对进程工作目录
+  # 每 Slack 线程一份工作区目录的根路径（相对路径相对进程工作目录）
   workspaces_root: .scheduler/workspaces
-  # 复制到工作区前的 Agent 限制文件模板（必须先存在且为文件）
+  # 写入会话前读取的 Agent 模板文件（须已存在）
   agent_md_template_path: .scheduler/AGENTS.template.md
-  # 在工作区内写入的限制文件名（例如 Cursor/Codex 读取的 AGENTS.md）
+  # 模板与调度器生成段合并后写入工作区根目录的文件名（如 AGENTS.md）
   agent_md_filename: AGENTS.md
-  # 仓库内的 Slack mrkdwn 全文参考（sirkitree），会复制到每会话工作区 references/slack-mrkdwn-guide.md
-  # 追加到模板末尾的约束文案（静默、少交互等），多行字符串
-  append_system_prompt: |
-    安静执行，不要在过程中对用户刷大量中间说明。
-    常规步骤不要反复请用户批准。
-    仅当任务本身含糊或确实被阻塞时，再提一个简短的澄清问题。
+  # 可选：复制到工作区 references/slack-mrkdwn-guide.md，给出站 mrkdwn 参考
+  # slack_mrkdwn_guide_path: docs/slack-mrkdwn-guide.md
 
-  # 可选：首个成功的 Provider 请求会在 Slack 消息前拼接该 Markdown（ACP 无独立 system 字段时用于首轮说明）
-  # first_turn_prompt_md_path: configs/first-turn.prompt.example.md
-
-  # Provider 进程在最后一次完成回复后的空闲多久后关闭（与 session_idle_timeout 取较短者参与空闲判定）
+  # Provider 进程空闲超过此时长后关闭（与 session_idle_timeout 取较短者参与判定）
   provider_idle_timeout: 12h
-  # 关闭 Provider 时 SIGTERM 后等待多久再 SIGKILL
+  # 关闭 Provider 时先 SIGTERM，等待多久再 SIGKILL
   provider_shutdown_timeout: 10s
-  # 会话侧空闲语义上的超时，常与 provider_idle_timeout 对齐（单位可用 h、m、s）
+  # 会话级空闲超时，常与 provider_idle_timeout 对齐；单位可用 h、m、s
   session_idle_timeout: 4h
-  # 单次 session/prompt 等待的上限
+  # 单次 Prompt 调用的最长等待时间
   prompt_timeout: 2h
-  # 会话清理时对工作区的处理：delete_on_session_close 删除；archive_on_session_close 归档（具体目录见实现）
+  # 会话结束对工作区：delete_on_session_close 删除；archive_on_session_close 归档
   workspace_retention: delete_on_session_close
 
-# 本地 ACP Provider 启动方式；default 指向 profiles 下的一个名称
 providers:
-  # 默认使用的 profile 名，必须在 profiles 中存在
+  # 默认使用的 profile 名，必须在 profiles 下存在
   default: cursor
+  # 另可选用 transport: acp（留空 transport 等价于 acp）：长连接标准输入输出 JSON-RPC
   profiles:
-    # Codex（推荐）: multica 同款 `codex app-server --listen stdio://`，JSON-RPC thread/turn；不要用 `codex acp` 交互子命令。
+    # transport: codex_app_server — codex app-server --listen stdio://，JSON-RPC thread/turn
     codex:
       transport: codex_app_server
       command: codex
@@ -85,9 +80,8 @@ providers:
       model: ""
       mode: yolo
       env: {}
+    # transport: cursor_cli — cursor-agent chat，核心参数由调度器拼装；args 仅填额外参数
     cursor:
-      # Cursor CLI（multica 同款参数顺序）: chat -p … --output-format stream-json --yolo [--model] [--workspace] [--resume]
-      # args 仅填额外参数（禁止覆盖 -p / --output-format / --yolo / --workspace / --resume / --model）
       transport: cursor_cli
       command: cursor-agent
       model: auto

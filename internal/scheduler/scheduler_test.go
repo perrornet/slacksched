@@ -41,6 +41,119 @@ func (ff *fakeFactory) Start(ctx context.Context, log *slog.Logger, prof config.
 	return &fakeRunner{id: "fake"}, nil
 }
 
+type capturingRunner struct {
+	prompts []string
+}
+
+func (c *capturingRunner) SessionID() string { return "cap" }
+
+func (c *capturingRunner) Prompt(ctx context.Context, userText string) (string, string, error) {
+	c.prompts = append(c.prompts, userText)
+	return userText + "!", "end_turn", nil
+}
+
+func (c *capturingRunner) Close() error { return nil }
+
+type capturingFactory struct {
+	r       *capturingRunner
+	started atomic.Int32
+}
+
+func (cf *capturingFactory) Start(ctx context.Context, log *slog.Logger, prof config.ProviderProfile, absWorkspace string, extraEnv []string) (PromptRunner, error) {
+	cf.started.Add(1)
+	return cf.r, nil
+}
+
+func TestSessionBootstrapSendsTwoPromptsThenSingle(t *testing.T) {
+	dir := t.TempDir()
+	tpl := filepath.Join(dir, "t.md")
+	if err := os.WriteFile(tpl, []byte("tpl\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wantBoot := workspace.BuildSessionBootstrapMarkdown()
+	yml := filepath.Join(dir, "c.yaml")
+	body := `
+slack:
+  bot_token_env: SLACK_BOT_TOKEN
+  app_token_env: SLACK_APP_TOKEN
+  allowed_dm_user_ids: []
+  allowed_channel_ids: []
+  require_mention_in_channels: true
+scheduler:
+  workspaces_root: ` + filepath.Join(dir, "ws") + `
+  agent_md_template_path: ` + tpl + `
+  agent_md_filename: AGENTS.md
+  provider_idle_timeout: 20m
+  provider_shutdown_timeout: 5s
+  session_idle_timeout: 20m
+  prompt_timeout: 1m
+  workspace_retention: delete_on_session_close
+providers:
+  default: p1
+  profiles:
+    p1:
+      command: echo
+      args: []
+`
+	if err := os.WriteFile(yml, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := config.Load(yml)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cap := &capturingRunner{}
+	cf := &capturingFactory{r: cap}
+	sch, err := New(c, slog.Default(), cf, nil, "", workspace.SessionBotIdentity{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := session.Key{TeamID: "T", ChannelID: "C", RootThreadTS: "1.0"}
+	ch := make(chan struct{}, 2)
+	sch.Enqueue(Job{
+		Key:                  key,
+		Text:                 "WRAPPED_FIRST",
+		AfterBootstrapPrompt: "PLAIN_USER",
+		Done: func(text string, err error) {
+			if err != nil {
+				t.Errorf("first job: %v", err)
+			}
+			if want := "PLAIN_USER!"; text != want {
+				t.Errorf("slack reply = %q want %q", text, want)
+			}
+			ch <- struct{}{}
+		},
+	})
+	select {
+	case <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout first job")
+	}
+	if len(cap.prompts) != 2 {
+		t.Fatalf("prompts = %v (%d calls)", cap.prompts, len(cap.prompts))
+	}
+	if cap.prompts[0] != wantBoot {
+		t.Fatalf("first prompt mismatch\n got (len=%d) want (len=%d)", len(cap.prompts[0]), len(wantBoot))
+	}
+	if cap.prompts[1] != "PLAIN_USER" {
+		t.Fatalf("second prompt = %q", cap.prompts[1])
+	}
+
+	sch.Enqueue(Job{
+		Key:   key,
+		Text:  "SECOND_MSG",
+		Done:  func(text string, err error) { ch <- struct{}{} },
+	})
+	select {
+	case <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout second job")
+	}
+	if len(cap.prompts) != 3 || cap.prompts[2] != "SECOND_MSG" {
+		t.Fatalf("after second job prompts = %v", cap.prompts)
+	}
+}
+
 func TestSchedulerFIFOAndSingleFactory(t *testing.T) {
 	dir := t.TempDir()
 	tpl := filepath.Join(dir, "t.md")
@@ -59,7 +172,6 @@ scheduler:
   workspaces_root: ` + filepath.Join(dir, "ws") + `
   agent_md_template_path: ` + tpl + `
   agent_md_filename: AGENTS.md
-  append_system_prompt: ""
   provider_idle_timeout: 20m
   provider_shutdown_timeout: 5s
   session_idle_timeout: 20m

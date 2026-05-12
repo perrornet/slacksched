@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
-	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +23,11 @@ type Job struct {
 	Key     session.Key
 	UserID  string
 	Text    string
+	// AfterBootstrapPrompt is the second user turn on a new provider session:
+	// raw Slack message text only (same as Text). Ignored after the handshake.
+	AfterBootstrapPrompt string
+	// SlackContext is written into AGENTS.md before each Prompt (channel/thread metadata and optional transcript).
+	SlackContext workspace.SlackRuntimeContext
 	EventID string
 	Done    func(text string, err error)
 	// OnStreamPhase is optional (assistant_live_status): Cursor stream-json and Codex item/* ; phase is "thinking" | "tool_call" | "idle".
@@ -125,15 +130,27 @@ type worker struct {
 	// contextBearerToken is registered with ctxReg for this worker (Context API); empty if disabled.
 	contextBearerToken string
 
-	// first turn prompt (from FirstTurnPromptMDPath); consumed after first successful Prompt.
-	firstTurnPrefix  string
-	firstTurnPending bool
+	// sessionBootstrapBody is the fixed first user turn (see workspace.BuildSessionBootstrapMarkdown).
+	sessionBootstrapBody string
+	// sessionBootstrapDone is true after the bootstrap prompt and the first real user message have been sent.
+	sessionBootstrapDone bool
 }
 
 func newWorker(s *Scheduler, key session.Key) *worker {
 	w := &worker{s: s, key: key, jobs: make(chan Job, 256)}
 	go w.run()
 	return w
+}
+
+func (w *worker) applySlackContext(ws string, job Job) error {
+	if ws == "" {
+		return nil
+	}
+	agentPath := filepath.Join(ws, w.s.cfg.Scheduler.AgentMDFilename)
+	sc := job.SlackContext
+	sc.AgentDoc = w.s.cfg.Scheduler.AgentMDFilename
+	sc.ContextAPIBaseURL = w.s.ctxBaseURL
+	return workspace.ReplaceSlackContextBody(agentPath, sc.BuildMarkdownBody())
 }
 
 func (w *worker) remove() {
@@ -198,13 +215,13 @@ func (w *worker) run() {
 			ctx := context.Background()
 			if prov == nil {
 				suffix := randomSuffix()
+				bootRaw := workspace.BuildSessionBootstrapMarkdown()
 				path, err := workspace.CreateSessionWorkspace(
 					w.s.cfg.Scheduler.WorkspacesRoot,
 					w.key.TeamID, w.key.ChannelID, w.key.RootThreadTS,
 					suffix,
 					w.s.cfg.Scheduler.AgentMDTemplatePath,
 					w.s.cfg.Scheduler.AgentMDFilename,
-					w.s.cfg.Scheduler.AppendSystemPrompt,
 					w.s.cfg.Scheduler.SlackMrkdwnGuidePath,
 					w.s.ctxBaseURL,
 					w.s.sessionBot,
@@ -240,20 +257,8 @@ func (w *worker) run() {
 				}
 				prov = h
 				w.contextBearerToken = bearer
-
-				w.firstTurnPrefix = ""
-				w.firstTurnPending = false
-				if ftp := strings.TrimSpace(w.s.cfg.Scheduler.FirstTurnPromptMDPath); ftp != "" {
-					b, rerr := os.ReadFile(ftp)
-					if rerr != nil {
-						if w.s.log != nil {
-							w.s.log.Warn("first_turn_prompt_md", "path", ftp, "err", rerr)
-						}
-					} else {
-						w.firstTurnPrefix = string(b)
-						w.firstTurnPending = strings.TrimSpace(w.firstTurnPrefix) != ""
-					}
-				}
+				w.sessionBootstrapBody = bootRaw
+				w.sessionBootstrapDone = false
 
 				w.s.log.Info("provider ready",
 					"slack_session_key", w.key.String(),
@@ -261,16 +266,51 @@ func (w *worker) run() {
 					"acp_session_id", h.SessionID(),
 					"slack_event_id", job.EventID,
 					"context_api", bearer != "",
+					"session_bootstrap", bootRaw != "",
 				)
 			}
-			pctx, cancel := context.WithTimeout(ctx, w.s.cfg.Scheduler.PromptTimeout.Duration())
-			pctx = provider.ContextWithStreamPhaseCallback(pctx, job.OnStreamPhase)
-			promptText := job.Text
-			if w.firstTurnPending && strings.TrimSpace(w.firstTurnPrefix) != "" {
-				promptText = workspace.ComposeFirstTurnPrompt(w.firstTurnPrefix, job.Text)
+			if ws != "" {
+				if err := w.applySlackContext(ws, job); err != nil {
+					w.s.log.Info("slack_context_agent_md", "err", err, "workspace_path", ws)
+					job.Done("", fmt.Errorf("slack context: %w", err))
+					resetIdle()
+					continue
+				}
 			}
-			text, _, err := prov.Prompt(pctx, promptText)
-			cancel()
+			runPrompt := func(pctx context.Context, user string) (string, error) {
+				pctx = provider.ContextWithStreamPhaseCallback(pctx, job.OnStreamPhase)
+				text, _, err := prov.Prompt(pctx, user)
+				return text, err
+			}
+			pctx, cancel := context.WithTimeout(ctx, w.s.cfg.Scheduler.PromptTimeout.Duration())
+			var text string
+			var err error
+			if w.sessionBootstrapBody != "" && !w.sessionBootstrapDone {
+				// First turn: bootstrap only; assistant text is not posted to Slack. Only the second turn is user-visible.
+				_, err = runPrompt(pctx, w.sessionBootstrapBody)
+				cancel()
+				if err != nil {
+					w.s.log.Info("session_bootstrap_prompt_failed",
+						"slack_session_key", w.key.String(),
+						"slack_event_id", job.EventID,
+						"err", err,
+					)
+					job.Done("", err)
+					resetIdle()
+					continue
+				}
+				w.sessionBootstrapDone = true
+				userTurn := strings.TrimSpace(job.AfterBootstrapPrompt)
+				if userTurn == "" {
+					userTurn = job.Text
+				}
+				pctx2, cancel2 := context.WithTimeout(ctx, w.s.cfg.Scheduler.PromptTimeout.Duration())
+				text, err = runPrompt(pctx2, userTurn)
+				cancel2()
+			} else {
+				text, err = runPrompt(pctx, job.Text)
+				cancel()
+			}
 			if err != nil {
 				w.s.log.Info("prompt failed",
 					"slack_session_key", w.key.String(),
@@ -279,9 +319,6 @@ func (w *worker) run() {
 				)
 				job.Done("", err)
 			} else {
-				if w.firstTurnPending {
-					w.firstTurnPending = false
-				}
 				job.Done(text, nil)
 			}
 			resetIdle()

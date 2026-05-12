@@ -9,13 +9,13 @@ import (
 )
 
 // CreateSessionWorkspace builds a unique directory under workspacesRoot and
-// writes agent markdown from template plus appended system prompt.
+// writes agent markdown from the template file.
 // If slackMrkdwnGuideSrc is non-empty, that file is copied into the workspace
 // as references/slack-mrkdwn-guide.md.
 // sessionBot is written into AGENTS.md when UserID is non-empty (once per new workspace).
 // BuildSchedulerAgentConstraintsMarkdown is written at the top of AGENTS.md (code-generated).
 // When contextAPIBaseURL is non-empty, a Slack context HTTP API section is appended after the session bot block.
-func CreateSessionWorkspace(workspacesRoot, teamID, channelID, rootThreadTS, uniqueSuffix, templatePath, agentFilename, appendPrompt, slackMrkdwnGuideSrc, contextAPIBaseURL string, sessionBot SessionBotIdentity) (string, error) {
+func CreateSessionWorkspace(workspacesRoot, teamID, channelID, rootThreadTS, uniqueSuffix, templatePath, agentFilename, slackMrkdwnGuideSrc, contextAPIBaseURL string, sessionBot SessionBotIdentity) (string, error) {
 	base, err := filepath.Abs(workspacesRoot)
 	if err != nil {
 		return "", fmt.Errorf("workspaces root: %w", err)
@@ -41,16 +41,7 @@ func CreateSessionWorkspace(workspacesRoot, teamID, channelID, rootThreadTS, uni
 		b.WriteString("\n")
 	}
 	b.Write(tplData)
-	if appendPrompt != "" {
-		if !strings.HasSuffix(b.String(), "\n") {
-			b.WriteString("\n")
-		}
-		b.WriteString("\n")
-		b.WriteString(appendPrompt)
-		if !strings.HasSuffix(appendPrompt, "\n") {
-			b.WriteString("\n")
-		}
-	}
+	b.WriteString(SlackContextSectionHTMLComment(""))
 	if sec := sessionBot.agentMarkdownSection(); sec != "" {
 		b.WriteString(sec)
 	}

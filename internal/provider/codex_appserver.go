@@ -1,5 +1,4 @@
-// Codex app-server wiring is adapted from multica-ai/multica server/pkg/agent/codex.go
-// (JSON-RPC over stdio, thread/*, turn/*). Upstream: https://github.com/multica-ai/multica
+// Codex app-server: JSON-RPC over stdio (thread/*, turn/*).
 
 package provider
 

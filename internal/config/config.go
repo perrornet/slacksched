@@ -43,7 +43,8 @@ type SlackConfig struct {
 	// AssistantLiveStatus: when true, map streaming events to assistant.threads.setStatus (Cursor stream-json; Codex app-server item/*).
 	// Ignores assistant_loading_messages while the run is in progress (live labels take over).
 	AssistantLiveStatus bool `yaml:"assistant_live_status"`
-	// ThreadRepliesInPrompt uses conversations.replies (same thread as root_thread_ts) and prepends a transcript to the provider prompt.
+	// ThreadRepliesInPrompt when true, loads thread history (conversations.replies) into
+	// the "Slack 会话上下文" section of AGENTS.md before each prompt (not into the user message).
 	ThreadRepliesInPrompt bool `yaml:"thread_replies_in_prompt"`
 	// ThreadRepliesMaxMessages caps messages collected from pagination (0 = default 100).
 	ThreadRepliesMaxMessages int `yaml:"thread_replies_max_messages"`
@@ -53,6 +54,9 @@ type SlackConfig struct {
 	ConvertOutboundMarkdown *bool `yaml:"convert_outbound_markdown"`
 	// ContextAPIListen starts a local HTTP API for on-demand thread history (e.g. 127.0.0.1:9847). Empty disables it.
 	ContextAPIListen string `yaml:"context_api_listen"`
+	// TurnEnvelope wraps each user message in structured framing (ids, “focus on this message”, blockquoted verbatim body).
+	// When nil or true (default), envelope is on; set false to send raw Slack text only.
+	TurnEnvelope *bool `yaml:"turn_envelope"`
 }
 
 // ConvertOutboundMarkdownEnabled is true unless convert_outbound_markdown is explicitly false.
@@ -66,24 +70,27 @@ func (s *SlackConfig) ConvertOutboundMarkdownEnabled() bool {
 	return *s.ConvertOutboundMarkdown
 }
 
+// TurnEnvelopeEnabled is true unless turn_envelope is explicitly false.
+func (s *SlackConfig) TurnEnvelopeEnabled() bool {
+	if s == nil || s.TurnEnvelope == nil {
+		return true
+	}
+	return *s.TurnEnvelope
+}
+
 // SchedulerConfig holds session lifecycle and workspace options.
 type SchedulerConfig struct {
 	WorkspacesRoot           string        `yaml:"workspaces_root"`
 	AgentMDTemplatePath      string        `yaml:"agent_md_template_path"`
 	AgentMDFilename          string        `yaml:"agent_md_filename"`
-	AppendSystemPrompt       string   `yaml:"append_system_prompt"`
-	ProviderIdleTimeout      Duration  `yaml:"provider_idle_timeout"`
+	ProviderIdleTimeout      Duration      `yaml:"provider_idle_timeout"`
 	ProviderShutdownTimeout  Duration  `yaml:"provider_shutdown_timeout"`
 	SessionIdleTimeout       Duration  `yaml:"session_idle_timeout"`
 	PromptTimeout            Duration  `yaml:"prompt_timeout"`
 	WorkspaceRetention       string        `yaml:"workspace_retention"`
 	// SlackMrkdwnGuidePath is optional. When set, that file is copied into each new session workspace
-	// as references/slack-mrkdwn-guide.md (for sirkitree-style Slack mrkdwn docs bundled in-repo).
+	// as references/slack-mrkdwn-guide.md (optional bundled mrkdwn reference for outbound conversion).
 	SlackMrkdwnGuidePath string `yaml:"slack_mrkdwn_guide_path"`
-	// FirstTurnPromptMDPath is optional. When set, file contents are prepended to the first successful
-	// Provider prompt for a new workspace session (ACP/Cursor/Codex), before the Slack-sourced message.
-	// ACP session/prompt has no separate system-role field in our client; use this instead of AGENTS.md for ephemeral instructions.
-	FirstTurnPromptMDPath string `yaml:"first_turn_prompt_md_path"`
 }
 
 // ProvidersConfig selects a default profile and defines commands.
@@ -95,7 +102,7 @@ type ProvidersConfig struct {
 // ProviderProfile describes how to launch a provider process.
 // Transport "acp" (default): long-lived stdio JSON-RPC Agent Client Protocol.
 // Transport "cursor_cli": cursor-agent chat -p … per Cursor CLI (see provider/cursor_args.go).
-// Transport "codex_app_server": codex app-server --listen stdio:// (multica-style JSON-RPC).
+// Transport "codex_app_server": codex app-server --listen stdio:// (JSON-RPC over stdio).
 type ProviderProfile struct {
 	Transport string            `yaml:"transport"` // acp | cursor_cli | codex_app_server; empty means acp
 	Command   string            `yaml:"command"`
@@ -203,12 +210,6 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("scheduler.slack_mrkdwn_guide_path must be a readable file: %s", guide)
 		}
 	}
-	firstTurn := strings.TrimSpace(c.Scheduler.FirstTurnPromptMDPath)
-	if firstTurn != "" {
-		if st, err := os.Stat(firstTurn); err != nil || st.IsDir() {
-			return fmt.Errorf("scheduler.first_turn_prompt_md_path must be a readable file: %s", firstTurn)
-		}
-	}
 	if c.Scheduler.ProviderIdleTimeout.Duration() <= 0 {
 		return fmt.Errorf("scheduler.provider_idle_timeout must be positive")
 	}
@@ -262,12 +263,6 @@ func (c *Config) Validate() error {
 	absTpl, err := filepath.Abs(tpl)
 	if err == nil {
 		c.Scheduler.AgentMDTemplatePath = absTpl
-	}
-	c.Scheduler.FirstTurnPromptMDPath = firstTurn
-	if firstTurn != "" {
-		if absFTP, err := filepath.Abs(firstTurn); err == nil {
-			c.Scheduler.FirstTurnPromptMDPath = absFTP
-		}
 	}
 	return nil
 }

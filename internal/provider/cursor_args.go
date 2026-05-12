@@ -1,6 +1,5 @@
-// Cursor CLI argv assembly follows the pattern used in multica-ai/multica
-// (server/pkg/agent/cursor.go): chat -p <prompt> --output-format stream-json --yolo
-// [--workspace] [--model] [--resume], then filtered user extras.
+// Cursor CLI argv assembly: core flags are built in; args are extras only.
+// Typical shape: chat -p <prompt> --output-format stream-json --yolo [--workspace] [--model] [--resume], then filtered user extras.
 
 package provider
 
@@ -22,7 +21,7 @@ var cursorBlockedArgs = map[string]struct{}{
 	"chat":            {},
 }
 
-// normalizeCursorStreamLine strips optional stdout:/stderr: prefixes that Cursor CLI may emit (multica: cursor.go).
+// normalizeCursorStreamLine strips optional stdout:/stderr: prefixes that Cursor CLI may emit.
 var cursorStreamPrefixRe = regexp.MustCompile(`^(?i)(stdout|stderr)\s*[:=]?\s*`)
 
 func normalizeCursorStreamLine(raw string) string {

@@ -24,7 +24,6 @@ scheduler:
   workspaces_root: ` + filepath.Join(dir, "ws") + `
   agent_md_template_path: ` + tpl + `
   agent_md_filename: AGENTS.md
-  append_system_prompt: "test"
   provider_idle_timeout: 1m
   provider_shutdown_timeout: 5s
   session_idle_timeout: 1m
@@ -63,5 +62,20 @@ providers:
 	}
 	if !c.Slack.ConvertOutboundMarkdownEnabled() {
 		t.Fatal("default convert_outbound should be enabled when unset")
+	}
+	if !c.Slack.TurnEnvelopeEnabled() {
+		t.Fatal("default turn_envelope should be on when unset")
+	}
+}
+
+func TestTurnEnvelopeExplicitFalse(t *testing.T) {
+	f := &SlackConfig{}
+	if !f.TurnEnvelopeEnabled() {
+		t.Fatal("nil TurnEnvelope should default on")
+	}
+	off := false
+	f.TurnEnvelope = &off
+	if f.TurnEnvelopeEnabled() {
+		t.Fatal("explicit false should disable")
 	}
 }

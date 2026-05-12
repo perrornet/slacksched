@@ -208,7 +208,7 @@ func readCursorStreamJSON(ctx context.Context, stdout io.Reader, log *slog.Logge
 	return finalText, sessionID, asst.String(), nil
 }
 
-// parseCursorAssistantLine returns concatenated assistant text deltas (multica-style content blocks).
+// parseCursorAssistantLine returns concatenated assistant text deltas from stream-json content blocks.
 func parseCursorAssistantLine(line []byte) string {
 	line = bytes.TrimSpace(line)
 	if len(line) == 0 {
