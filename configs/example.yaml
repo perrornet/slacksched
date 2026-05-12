@@ -55,6 +55,11 @@ scheduler:
   agent_md_filename: AGENTS.md
   # 可选：复制到工作区 references/slack-mrkdwn-guide.md，给出站 mrkdwn 参考
   # slack_mrkdwn_guide_path: docs/slack-mrkdwn-guide.md
+  # 可选：每个新 session workspace 创建后、Provider 启动前执行的 bash 命令。
+  # 命令通过 bash -lc 执行，工作目录为新 workspace；非零退出会中止 session 创建。
+  # 可用环境变量：SCHDULER_SESSION_WORKSPACE、SCHDULER_SESSION_TEAM_ID、
+  # SCHDULER_SESSION_CHANNEL_ID、SCHDULER_SESSION_ROOT_THREAD_TS
+  # pre_session_command: 'printf "session initialized\n" > .session-init'
 
   # Provider 进程空闲超过此时长后关闭（与 session_idle_timeout 取较短者参与判定）
   provider_idle_timeout: 12h

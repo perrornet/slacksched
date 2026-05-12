@@ -20,26 +20,26 @@ type Config struct {
 
 // LoggingConfig controls process log level and verbose tracing.
 type LoggingConfig struct {
-	Level      string `yaml:"level"`        // debug, info, warn, error; empty defaults to info
-	ACPTrace   bool   `yaml:"acp_trace"`    // log every newline-delimited JSON-RPC line on provider stdio
-	SlackTrace bool   `yaml:"slack_trace"`  // include truncated inbound/outbound Slack message text in logs
+	Level      string `yaml:"level"`       // debug, info, warn, error; empty defaults to info
+	ACPTrace   bool   `yaml:"acp_trace"`   // log every newline-delimited JSON-RPC line on provider stdio
+	SlackTrace bool   `yaml:"slack_trace"` // include truncated inbound/outbound Slack message text in logs
 	// FilePath when set, duplicate the same text logs to this file (append, create if missing).
 	FilePath string `yaml:"file_path"`
 }
 
 // SlackConfig holds Slack Socket Mode and routing options.
 type SlackConfig struct {
-	BotTokenEnv            string   `yaml:"bot_token_env"`
-	AppTokenEnv            string   `yaml:"app_token_env"`
-	DefaultReplyBroadcast   bool     `yaml:"default_reply_broadcast"`
-	AllowedDMUserIDs       []string `yaml:"allowed_dm_user_ids"`
-	AllowedChannelIDs      []string `yaml:"allowed_channel_ids"`
+	BotTokenEnv           string   `yaml:"bot_token_env"`
+	AppTokenEnv           string   `yaml:"app_token_env"`
+	DefaultReplyBroadcast bool     `yaml:"default_reply_broadcast"`
+	AllowedDMUserIDs      []string `yaml:"allowed_dm_user_ids"`
+	AllowedChannelIDs     []string `yaml:"allowed_channel_ids"`
 	// RequireMentionInChannels: in workspace channels, every message (including thread follow-ups) must @ the bot; ignored for IMs.
-	RequireMentionInChannels bool   `yaml:"require_mention_in_channels"`
+	RequireMentionInChannels bool `yaml:"require_mention_in_channels"`
 	// AssistantStatus enables assistant.threads.setStatus while the provider runs (cleared when chat.postMessage succeeds).
 	AssistantStatus          bool     `yaml:"assistant_status"`
-	AssistantStatusText      string   `yaml:"assistant_status_text"`       // empty → code default "Working on your request…" (shown as "<app> is …"); live mode may append "— tools: …"
-	AssistantLoadingMessages []string `yaml:"assistant_loading_messages"`  // optional rotating loading lines (max 10)
+	AssistantStatusText      string   `yaml:"assistant_status_text"`      // empty → code default "Working on your request…" (shown as "<app> is …"); live mode may append "— tools: …"
+	AssistantLoadingMessages []string `yaml:"assistant_loading_messages"` // optional rotating loading lines (max 10)
 	// AssistantLiveStatus: when true, map streaming events to assistant.threads.setStatus (Cursor stream-json; Codex app-server item/*).
 	// Ignores assistant_loading_messages while the run is in progress (live labels take over).
 	AssistantLiveStatus bool `yaml:"assistant_live_status"`
@@ -80,14 +80,15 @@ func (s *SlackConfig) TurnEnvelopeEnabled() bool {
 
 // SchedulerConfig holds session lifecycle and workspace options.
 type SchedulerConfig struct {
-	WorkspacesRoot           string        `yaml:"workspaces_root"`
-	AgentMDTemplatePath      string        `yaml:"agent_md_template_path"`
-	AgentMDFilename          string        `yaml:"agent_md_filename"`
-	ProviderIdleTimeout      Duration      `yaml:"provider_idle_timeout"`
-	ProviderShutdownTimeout  Duration  `yaml:"provider_shutdown_timeout"`
-	SessionIdleTimeout       Duration  `yaml:"session_idle_timeout"`
-	PromptTimeout            Duration  `yaml:"prompt_timeout"`
-	WorkspaceRetention       string        `yaml:"workspace_retention"`
+	WorkspacesRoot          string   `yaml:"workspaces_root"`
+	AgentMDTemplatePath     string   `yaml:"agent_md_template_path"`
+	AgentMDFilename         string   `yaml:"agent_md_filename"`
+	PreSessionCommand       string   `yaml:"pre_session_command"`
+	ProviderIdleTimeout     Duration `yaml:"provider_idle_timeout"`
+	ProviderShutdownTimeout Duration `yaml:"provider_shutdown_timeout"`
+	SessionIdleTimeout      Duration `yaml:"session_idle_timeout"`
+	PromptTimeout           Duration `yaml:"prompt_timeout"`
+	WorkspaceRetention      string   `yaml:"workspace_retention"`
 	// SlackMrkdwnGuidePath is optional. When set, that file is copied into each new session workspace
 	// as references/slack-mrkdwn-guide.md (optional bundled mrkdwn reference for outbound conversion).
 	SlackMrkdwnGuidePath string `yaml:"slack_mrkdwn_guide_path"`
@@ -106,7 +107,7 @@ type ProvidersConfig struct {
 type ProviderProfile struct {
 	Transport string            `yaml:"transport"` // acp | cursor_cli | codex_app_server; empty means acp
 	Command   string            `yaml:"command"`
-	Args      []string          `yaml:"args"` // acp: argv after command; cursor_cli/codex_app_server: extra args (filtered)
+	Args      []string          `yaml:"args"`  // acp: argv after command; cursor_cli/codex_app_server: extra args (filtered)
 	Model     string            `yaml:"model"` // cursor_cli: --model; codex_app_server: thread/start model
 	Mode      string            `yaml:"mode"`
 	Env       map[string]string `yaml:"env"`

@@ -20,16 +20,16 @@ import (
 
 // Job is one queued Slack user message for a thread.
 type Job struct {
-	Key     session.Key
-	UserID  string
-	Text    string
+	Key    session.Key
+	UserID string
+	Text   string
 	// AfterBootstrapPrompt is the second user turn on a new provider session:
 	// raw Slack message text only (same as Text). Ignored after the handshake.
 	AfterBootstrapPrompt string
 	// SlackContext is written into AGENTS.md before each Prompt (channel/thread metadata and optional transcript).
 	SlackContext workspace.SlackRuntimeContext
-	EventID string
-	Done    func(text string, err error)
+	EventID      string
+	Done         func(text string, err error)
 	// OnStreamPhase is optional (assistant_live_status): Cursor stream-json and Codex item/* ; phase is "thinking" | "tool_call" | "idle".
 	OnStreamPhase func(phase, tool string)
 }
@@ -232,6 +232,14 @@ func (w *worker) run() {
 					continue
 				}
 				ws = path
+
+				if err := runPreSessionCommand(ctx, w.s.cfg.Scheduler.PreSessionCommand, path, w.key); err != nil {
+					_ = provider.CleanupWorkspace(w.s.cfg, ws)
+					ws = ""
+					job.Done("", err)
+					resetIdle()
+					continue
+				}
 
 				var extraEnv []string
 				var bearer string
