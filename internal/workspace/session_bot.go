@@ -27,23 +27,13 @@ func (s SessionBotIdentity) agentMarkdownSection() string {
 	var b strings.Builder
 	b.WriteString("\n## 本会话的 Slack 机器人身份\n\n")
 	b.WriteString("最终回复会以**本机器人**身份发到 Slack；解读线程里的 @ 或自我提及时可对照下列字段。\n\n")
-	b.WriteString("- **bot_user_id（机器人用户 id）**：`")
+	b.WriteString("- **bot_user_id**：`")
 	b.WriteString(uid)
 	b.WriteString("` — mrkdwn 提及形式：`<@")
 	b.WriteString(uid)
 	b.WriteString(">`\n")
-	if bid := strings.TrimSpace(s.BotID); bid != "" {
-		b.WriteString("- **slack_bot_id（应用侧机器人 id）**：`")
-		b.WriteString(bid)
-		b.WriteString("`\n")
-	}
-	if un := strings.TrimSpace(s.UserName); un != "" {
-		b.WriteString("- **bot_username（用户名 / handle）**：`")
-		b.WriteString(un)
-		b.WriteString("`\n")
-	}
 	if display != "" {
-		b.WriteString("- **bot_display_name（显示名）**：")
+		b.WriteString("- **bot_display_name**：")
 		b.WriteString(display)
 		b.WriteString("\n")
 	}

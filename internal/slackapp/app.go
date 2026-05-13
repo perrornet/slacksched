@@ -23,15 +23,15 @@ import (
 
 // App wires Socket Mode to the scheduler.
 type App struct {
-	cfg            *config.Config
-	api            *slack.Client
-	sm             *socketmode.Client
-	log            *slog.Logger
-	sch            *scheduler.Scheduler
-	filter         *messagefilter.Filter
-	botToken       string
-	selfMentionRE  *regexp.Regexp
-	contextAPIURL  string // set when slacksched exposes local Slack Context HTTP API
+	cfg           *config.Config
+	api           *slack.Client
+	sm            *socketmode.Client
+	log           *slog.Logger
+	sch           *scheduler.Scheduler
+	filter        *messagefilter.Filter
+	botToken      string
+	selfMentionRE *regexp.Regexp
+	contextAPIURL string // set when slacksched exposes local Slack Context HTTP API
 }
 
 // New builds the Slack app. botToken is the xoxb- token for Web API calls such as assistant.threads.setStatus.
@@ -223,10 +223,6 @@ func (a *App) dispatch(teamID, channelID, rootTS, userID, text, eventID, trigger
 		)
 	}
 
-	var afterBootstrap string
-	if strings.TrimSpace(workspace.BuildSessionBootstrapMarkdown()) != "" {
-		afterBootstrap = promptText
-	}
 	if a.cfg.Slack.AssistantStatus && a.botToken != "" {
 		statusLine := buildLiveStatusLine(defaultAssistantStatusSuffix(&a.cfg.Slack), nil)
 		var loading []string
@@ -255,7 +251,6 @@ func (a *App) dispatch(teamID, channelID, rootTS, userID, text, eventID, trigger
 		"thread_prior_in_agent_md", a.cfg.Slack.ThreadRepliesInPrompt && strings.TrimSpace(threadPrior) != "",
 		"turn_envelope", a.cfg.Slack.TurnEnvelopeEnabled(),
 		"provider_prompt_len", runeLen(promptText),
-		"after_bootstrap_len", runeLen(afterBootstrap),
 	}
 	if a.cfg.Logging.SlackTrace {
 		inbound = append(inbound, "text_preview", previewRunes(text, maxSlackTextPreviewRunes))
@@ -353,13 +348,12 @@ func (a *App) dispatch(teamID, channelID, rootTS, userID, text, eventID, trigger
 			ChannelID:    channelID,
 			RootThreadTS: rootTS,
 		},
-		UserID:               userID,
-		Text:                 promptText,
-		AfterBootstrapPrompt: afterBootstrap,
-		SlackContext:         slackCtx,
-		EventID:              eventID,
-		Done:                 done,
-		OnStreamPhase:        onStreamPhase,
+		UserID:        userID,
+		Text:          promptText,
+		SlackContext:  slackCtx,
+		EventID:       eventID,
+		Done:          done,
+		OnStreamPhase: onStreamPhase,
 	})
 }
 
@@ -367,4 +361,3 @@ func (a *App) dispatch(teamID, channelID, rootTS, userID, text, eventID, trigger
 func (a *App) SetSocketClient(sm *socketmode.Client) {
 	a.sm = sm
 }
-

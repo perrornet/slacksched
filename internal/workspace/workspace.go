@@ -9,13 +9,13 @@ import (
 )
 
 // CreateSessionWorkspace builds a unique directory under workspacesRoot and
-// writes agent markdown from the template file.
+// writes agent markdown: code-generated constraints, then BuiltinAgentMarkdownFileIntro
+// (not user-configurable), then the Slack context placeholder block and optional sections.
 // If slackMrkdwnGuideSrc is non-empty, that file is copied into the workspace
 // as references/slack-mrkdwn-guide.md.
 // sessionBot is written into AGENTS.md when UserID is non-empty (once per new workspace).
-// BuildSchedulerAgentConstraintsMarkdown is written at the top of AGENTS.md (code-generated).
 // When contextAPIBaseURL is non-empty, a Slack context HTTP API section is appended after the session bot block.
-func CreateSessionWorkspace(workspacesRoot, teamID, channelID, rootThreadTS, uniqueSuffix, templatePath, agentFilename, slackMrkdwnGuideSrc, contextAPIBaseURL string, sessionBot SessionBotIdentity) (string, error) {
+func CreateSessionWorkspace(workspacesRoot, teamID, channelID, rootThreadTS, uniqueSuffix, agentFilename, slackMrkdwnGuideSrc, contextAPIBaseURL string, sessionBot SessionBotIdentity) (string, error) {
 	base, err := filepath.Abs(workspacesRoot)
 	if err != nil {
 		return "", fmt.Errorf("workspaces root: %w", err)
@@ -26,10 +26,7 @@ func CreateSessionWorkspace(workspacesRoot, teamID, channelID, rootThreadTS, uni
 	if err := os.MkdirAll(full, 0o755); err != nil {
 		return "", fmt.Errorf("mkdir workspace: %w", err)
 	}
-	tplData, err := os.ReadFile(templatePath)
-	if err != nil {
-		return "", fmt.Errorf("read template: %w", err)
-	}
+	tplData := []byte(strings.TrimSpace(BuiltinAgentMarkdownFileIntro) + "\n")
 	agentPath := filepath.Join(full, agentFilename)
 	var b strings.Builder
 	constraints := BuildSchedulerAgentConstraintsMarkdown(agentFilename, contextAPIBaseURL)

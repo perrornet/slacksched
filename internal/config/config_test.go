@@ -8,10 +8,6 @@ import (
 
 func TestLoadMinimal(t *testing.T) {
 	dir := t.TempDir()
-	tpl := filepath.Join(dir, "tpl.md")
-	if err := os.WriteFile(tpl, []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	yml := filepath.Join(dir, "c.yaml")
 	body := `
 slack:
@@ -22,7 +18,6 @@ slack:
   require_mention_in_channels: true
 scheduler:
   workspaces_root: ` + filepath.Join(dir, "ws") + `
-  agent_md_template_path: ` + tpl + `
   agent_md_filename: AGENTS.md
   provider_idle_timeout: 1m
   provider_shutdown_timeout: 5s
@@ -70,10 +65,6 @@ providers:
 
 func TestLoadPreSessionCommand(t *testing.T) {
 	dir := t.TempDir()
-	tpl := filepath.Join(dir, "tpl.md")
-	if err := os.WriteFile(tpl, []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	yml := filepath.Join(dir, "c.yaml")
 	body := `
 slack:
@@ -84,7 +75,6 @@ slack:
   require_mention_in_channels: true
 scheduler:
   workspaces_root: ` + filepath.Join(dir, "ws") + `
-  agent_md_template_path: ` + tpl + `
   agent_md_filename: AGENTS.md
   provider_idle_timeout: 1m
   provider_shutdown_timeout: 5s

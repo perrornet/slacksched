@@ -11,17 +11,15 @@ func BuildSchedulerAgentConstraintsMarkdown(agentMDFilename, contextAPIBaseURL s
 	}
 
 	var b strings.Builder
-	b.WriteString("# 面向 ACP Provider 的会话工作区约束\n\n")
-	b.WriteString("你在一个自动化的 Slack 调度器（schduler）里运行。\n\n")
-	b.WriteString("- 除非用户明确要求，否则改动限定在**本会话工作区目录**内。\n")
-	b.WriteString("- 不确定时，先提一个**很短的澄清问题**，不要随意猜测。\n")
-	b.WriteString("- 意图分流、Kubernetes、产品与交付流程与回复形态等**完整运行手册**在同文件的模板段落中（紧随本段之后）。每轮 Provider 消息以用户具体请求为主，**勿依赖**单轮消息重复陈述整本手册。\n")
+	b.WriteString("# 当前会话约束\n\n")
+	b.WriteString("- 默认只在本会话工作区目录内改文件；不确定时先一句澄清。\n")
+	b.WriteString("- 线程元数据见「Slack 会话上下文」；勿默认单条入站消息已含完整线程。\n")
 	if strings.TrimSpace(contextAPIBaseURL) != "" {
-		b.WriteString("- 当 shell 里已设置 `SCHDULER_CONTEXT_API_URL` 与 `SCHDULER_CONTEXT_API_TOKEN` 时，调度器在本机提供了 **Slack 线程上下文 HTTP API**。完整路径、curl 示例与允许调用的 Slack Web 方法列表已写入本文件 `")
+		b.WriteString("- 若 shell 已设置 `SCHDULER_CONTEXT_API_URL` 与 `SCHDULER_CONTEXT_API_TOKEN`，可按本文件 `")
 		b.WriteString(agent)
-		b.WriteString("` **文末**「Slack 线程上下文 HTTP API」一节（由程序生成，与当前调度器二进制一致）。按需拉取线程历史，不要凭空臆测；不要默认完整长上下文已随 Slack 入站消息一并提供。\n")
+		b.WriteString("` 文末「Slack 线程上下文 HTTP API」按需拉历史。\n")
 	} else {
-		b.WriteString("- 本会话未启用按需 HTTP 上下文 API。不要假设可通过调度器暴露的本地 HTTP 接口拉取线程；需要历史时依赖 Slack 入站内容与本仓库内其它材料。\n")
+		b.WriteString("- 本会话未启用按需 HTTP 上下文 API。\n")
 	}
 	return b.String()
 }

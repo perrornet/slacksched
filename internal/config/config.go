@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -81,7 +80,6 @@ func (s *SlackConfig) TurnEnvelopeEnabled() bool {
 // SchedulerConfig holds session lifecycle and workspace options.
 type SchedulerConfig struct {
 	WorkspacesRoot          string   `yaml:"workspaces_root"`
-	AgentMDTemplatePath     string   `yaml:"agent_md_template_path"`
 	AgentMDFilename         string   `yaml:"agent_md_filename"`
 	PreSessionCommand       string   `yaml:"pre_session_command"`
 	ProviderIdleTimeout     Duration `yaml:"provider_idle_timeout"`
@@ -195,13 +193,6 @@ func (c *Config) Validate() error {
 	if root == "" {
 		return fmt.Errorf("scheduler.workspaces_root is required")
 	}
-	tpl := strings.TrimSpace(c.Scheduler.AgentMDTemplatePath)
-	if tpl == "" {
-		return fmt.Errorf("scheduler.agent_md_template_path is required")
-	}
-	if st, err := os.Stat(tpl); err != nil || st.IsDir() {
-		return fmt.Errorf("scheduler.agent_md_template_path must be a readable file: %s", tpl)
-	}
 	if strings.TrimSpace(c.Scheduler.AgentMDFilename) == "" {
 		return fmt.Errorf("scheduler.agent_md_filename is required")
 	}
@@ -248,7 +239,7 @@ func (c *Config) Validate() error {
 		switch t {
 		case "acp", "cursor_cli", "codex_app_server":
 		default:
-			return fmt.Errorf("providers.profiles.%s.transport must be acp or cursor_cli", name)
+			return fmt.Errorf("providers.profiles.%s.transport must be acp, cursor_cli, or codex_app_server", name)
 		}
 		if strings.TrimSpace(p.Command) == "" {
 			return fmt.Errorf("providers.profiles.%s.command is required", name)
@@ -260,10 +251,6 @@ func (c *Config) Validate() error {
 	case "", "debug", "info", "warn", "warning", "error":
 	default:
 		return fmt.Errorf("logging.level must be one of debug, info, warn, error")
-	}
-	absTpl, err := filepath.Abs(tpl)
-	if err == nil {
-		c.Scheduler.AgentMDTemplatePath = absTpl
 	}
 	return nil
 }

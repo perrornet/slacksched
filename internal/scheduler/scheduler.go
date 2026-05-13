@@ -23,9 +23,6 @@ type Job struct {
 	Key    session.Key
 	UserID string
 	Text   string
-	// AfterBootstrapPrompt is the second user turn on a new provider session:
-	// raw Slack message text only (same as Text). Ignored after the handshake.
-	AfterBootstrapPrompt string
 	// SlackContext is written into AGENTS.md before each Prompt (channel/thread metadata and optional transcript).
 	SlackContext workspace.SlackRuntimeContext
 	EventID      string
@@ -130,9 +127,10 @@ type worker struct {
 	// contextBearerToken is registered with ctxReg for this worker (Context API); empty if disabled.
 	contextBearerToken string
 
-	// sessionBootstrapBody is the fixed first user turn (see workspace.BuildSessionBootstrapMarkdown).
+	// sessionBootstrapBody is the first user turn on a new provider session: filled agent
+	// template (placeholders + user message). Assistant reply is posted to Slack like any turn.
 	sessionBootstrapBody string
-	// sessionBootstrapDone is true after the bootstrap prompt and the first real user message have been sent.
+	// sessionBootstrapDone is true after the opening prompt has been sent.
 	sessionBootstrapDone bool
 }
 
@@ -215,12 +213,10 @@ func (w *worker) run() {
 			ctx := context.Background()
 			if prov == nil {
 				suffix := randomSuffix()
-				bootRaw := workspace.BuildSessionBootstrapMarkdown()
 				path, err := workspace.CreateSessionWorkspace(
 					w.s.cfg.Scheduler.WorkspacesRoot,
 					w.key.TeamID, w.key.ChannelID, w.key.RootThreadTS,
 					suffix,
-					w.s.cfg.Scheduler.AgentMDTemplatePath,
 					w.s.cfg.Scheduler.AgentMDFilename,
 					w.s.cfg.Scheduler.SlackMrkdwnGuidePath,
 					w.s.ctxBaseURL,
@@ -240,6 +236,8 @@ func (w *worker) run() {
 					resetIdle()
 					continue
 				}
+
+				opening := workspace.BuildSessionOpeningPrompt(job.SlackContext, job.UserID, job.Text)
 
 				var extraEnv []string
 				var bearer string
@@ -265,7 +263,7 @@ func (w *worker) run() {
 				}
 				prov = h
 				w.contextBearerToken = bearer
-				w.sessionBootstrapBody = bootRaw
+				w.sessionBootstrapBody = opening
 				w.sessionBootstrapDone = false
 
 				w.s.log.Info("provider ready",
@@ -274,7 +272,7 @@ func (w *worker) run() {
 					"acp_session_id", h.SessionID(),
 					"slack_event_id", job.EventID,
 					"context_api", bearer != "",
-					"session_bootstrap", bootRaw != "",
+					"session_opening", opening != "",
 				)
 			}
 			if ws != "" {
@@ -294,11 +292,10 @@ func (w *worker) run() {
 			var text string
 			var err error
 			if w.sessionBootstrapBody != "" && !w.sessionBootstrapDone {
-				// First turn: bootstrap only; assistant text is not posted to Slack. Only the second turn is user-visible.
-				_, err = runPrompt(pctx, w.sessionBootstrapBody)
+				text, err = runPrompt(pctx, w.sessionBootstrapBody)
 				cancel()
 				if err != nil {
-					w.s.log.Info("session_bootstrap_prompt_failed",
+					w.s.log.Info("session_opening_prompt_failed",
 						"slack_session_key", w.key.String(),
 						"slack_event_id", job.EventID,
 						"err", err,
@@ -308,13 +305,6 @@ func (w *worker) run() {
 					continue
 				}
 				w.sessionBootstrapDone = true
-				userTurn := strings.TrimSpace(job.AfterBootstrapPrompt)
-				if userTurn == "" {
-					userTurn = job.Text
-				}
-				pctx2, cancel2 := context.WithTimeout(ctx, w.s.cfg.Scheduler.PromptTimeout.Duration())
-				text, err = runPrompt(pctx2, userTurn)
-				cancel2()
 			} else {
 				text, err = runPrompt(pctx, job.Text)
 				cancel()

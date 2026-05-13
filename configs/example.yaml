@@ -18,7 +18,8 @@ slack:
   # 为 true 时 Bot 回复也出现在频道主时间线；多数场景用 false，仅在线程内可见
   default_reply_broadcast: false
   # 私聊（DM）允许的发送者 Slack User ID（U…）。为空则不接受任何 DM
-  allowed_dm_user_ids: []
+  allowed_dm_user_ids:
+    - U02RDHUV2DS
   # 允许发起会话的频道 ID（C…）。为空 [] 表示在满足下方提及规则等前提下任意频道均可
   allowed_channel_ids: []
   # 频道内是否每条消息都必须 @ 本应用（含同线程后续回复）；IM 不受此限制
@@ -49,9 +50,8 @@ slack:
 scheduler:
   # 每 Slack 线程一份工作区目录的根路径（相对路径相对进程工作目录）
   workspaces_root: .scheduler/workspaces
-  # 写入会话前读取的 Agent 模板文件（须已存在）
-  agent_md_template_path: .scheduler/AGENTS.template.md
-  # 模板与调度器生成段合并后写入工作区根目录的文件名（如 AGENTS.md）
+  # Agent 说明正文（constraints 之后、与首条 Prompt 同源）由程序内置，不可通过配置覆盖
+  # 合并后与调度器生成段一起写入工作区根目录的 agent 文件名：
   agent_md_filename: AGENTS.md
   # 可选：复制到工作区 references/slack-mrkdwn-guide.md，给出站 mrkdwn 参考
   # slack_mrkdwn_guide_path: docs/slack-mrkdwn-guide.md
@@ -74,7 +74,7 @@ scheduler:
 
 providers:
   # 默认使用的 profile 名，必须在 profiles 下存在
-  default: cursor
+  default: codex
   # 另可选用 transport: acp（留空 transport 等价于 acp）：长连接标准输入输出 JSON-RPC
   profiles:
     # transport: codex_app_server — codex app-server --listen stdio://，JSON-RPC thread/turn

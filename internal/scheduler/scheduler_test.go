@@ -67,13 +67,8 @@ func (cf *capturingFactory) Start(ctx context.Context, log *slog.Logger, prof co
 	return cf.r, nil
 }
 
-func TestSessionBootstrapSendsTwoPromptsThenSingle(t *testing.T) {
+func TestSessionOpeningPromptTemplateThenFollowUp(t *testing.T) {
 	dir := t.TempDir()
-	tpl := filepath.Join(dir, "t.md")
-	if err := os.WriteFile(tpl, []byte("tpl\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	wantBoot := workspace.BuildSessionBootstrapMarkdown()
 	yml := filepath.Join(dir, "c.yaml")
 	body := `
 slack:
@@ -84,7 +79,6 @@ slack:
   require_mention_in_channels: true
 scheduler:
   workspaces_root: ` + filepath.Join(dir, "ws") + `
-  agent_md_template_path: ` + tpl + `
   agent_md_filename: AGENTS.md
   provider_idle_timeout: 20m
   provider_shutdown_timeout: 5s
@@ -112,16 +106,22 @@ providers:
 		t.Fatal(err)
 	}
 	key := session.Key{TeamID: "T", ChannelID: "C", RootThreadTS: "1.0"}
+	sc := workspace.SlackRuntimeContext{
+		ChannelID:   "C",
+		ChannelName: "chan",
+	}
+	wantOpening := workspace.BuildSessionOpeningPrompt(sc, "U", "WRAPPED_FIRST")
 	ch := make(chan struct{}, 2)
 	sch.Enqueue(Job{
-		Key:                  key,
-		Text:                 "WRAPPED_FIRST",
-		AfterBootstrapPrompt: "PLAIN_USER",
+		Key:          key,
+		SlackContext: sc,
+		UserID:       "U",
+		Text:         "WRAPPED_FIRST",
 		Done: func(text string, err error) {
 			if err != nil {
 				t.Errorf("first job: %v", err)
 			}
-			if want := "PLAIN_USER!"; text != want {
+			if want := wantOpening + "!"; text != want {
 				t.Errorf("slack reply = %q want %q", text, want)
 			}
 			ch <- struct{}{}
@@ -132,14 +132,11 @@ providers:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout first job")
 	}
-	if len(cap.prompts) != 2 {
+	if len(cap.prompts) != 1 {
 		t.Fatalf("prompts = %v (%d calls)", cap.prompts, len(cap.prompts))
 	}
-	if cap.prompts[0] != wantBoot {
-		t.Fatalf("first prompt mismatch\n got (len=%d) want (len=%d)", len(cap.prompts[0]), len(wantBoot))
-	}
-	if cap.prompts[1] != "PLAIN_USER" {
-		t.Fatalf("second prompt = %q", cap.prompts[1])
+	if cap.prompts[0] != wantOpening {
+		t.Fatalf("first prompt = %q want %q", cap.prompts[0], wantOpening)
 	}
 
 	sch.Enqueue(Job{
@@ -152,17 +149,13 @@ providers:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout second job")
 	}
-	if len(cap.prompts) != 3 || cap.prompts[2] != "SECOND_MSG" {
+	if len(cap.prompts) != 2 || cap.prompts[1] != "SECOND_MSG" {
 		t.Fatalf("after second job prompts = %v", cap.prompts)
 	}
 }
 
 func TestSchedulerFIFOAndSingleFactory(t *testing.T) {
 	dir := t.TempDir()
-	tpl := filepath.Join(dir, "t.md")
-	if err := os.WriteFile(tpl, []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	yml := filepath.Join(dir, "c.yaml")
 	body := `
 slack:
@@ -173,7 +166,6 @@ slack:
   require_mention_in_channels: true
 scheduler:
   workspaces_root: ` + filepath.Join(dir, "ws") + `
-  agent_md_template_path: ` + tpl + `
   agent_md_filename: AGENTS.md
   provider_idle_timeout: 20m
   provider_shutdown_timeout: 5s
@@ -229,10 +221,6 @@ providers:
 
 func TestPreSessionCommandRunsBeforeProviderStart(t *testing.T) {
 	dir := t.TempDir()
-	tpl := filepath.Join(dir, "t.md")
-	if err := os.WriteFile(tpl, []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	yml := filepath.Join(dir, "c.yaml")
 	body := `
 slack:
@@ -243,7 +231,6 @@ slack:
   require_mention_in_channels: true
 scheduler:
   workspaces_root: ` + filepath.Join(dir, "ws") + `
-  agent_md_template_path: ` + tpl + `
   agent_md_filename: AGENTS.md
   provider_idle_timeout: 20m
   provider_shutdown_timeout: 5s
@@ -320,10 +307,6 @@ providers:
 
 func TestPreSessionCommandFailureStopsProviderStart(t *testing.T) {
 	dir := t.TempDir()
-	tpl := filepath.Join(dir, "t.md")
-	if err := os.WriteFile(tpl, []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	yml := filepath.Join(dir, "c.yaml")
 	body := `
 slack:
@@ -334,7 +317,6 @@ slack:
   require_mention_in_channels: true
 scheduler:
   workspaces_root: ` + filepath.Join(dir, "ws") + `
-  agent_md_template_path: ` + tpl + `
   agent_md_filename: AGENTS.md
   provider_idle_timeout: 20m
   provider_shutdown_timeout: 5s

@@ -38,14 +38,10 @@ func (c SlackRuntimeContext) BuildMarkdownBody() string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("- `team_id`: `%s`\n", strings.TrimSpace(c.TeamID)))
 	b.WriteString(fmt.Sprintf("- `channel_id`: `%s`\n", strings.TrimSpace(c.ChannelID)))
-	if c.IsIM {
-		b.WriteString("- 会话类型：Slack 私信（im）\n")
-	} else {
+	if !c.IsIM {
 		name := strings.TrimSpace(c.ChannelName)
 		if name != "" {
 			b.WriteString(fmt.Sprintf("- 频道名称：`#%s`\n", strings.TrimPrefix(name, "#")))
-		} else {
-			b.WriteString("- 频道名称：（未能从 Slack API 解析）\n")
 		}
 	}
 	b.WriteString(fmt.Sprintf("- `root_thread_ts`: `%s`\n", strings.TrimSpace(c.RootThreadTS)))
@@ -66,12 +62,7 @@ func (c SlackRuntimeContext) BuildMarkdownBody() string {
 // SlackContextSectionHTMLComment inserts the delimited region into a new AGENTS.md.
 func SlackContextSectionHTMLComment(initialInner string) string {
 	inner := strings.TrimRight(initialInner, "\n")
-	if inner == "" {
-		inner = "_（尚无具体上下文，首条入站后将刷新）_"
-	}
 	var b strings.Builder
-	b.WriteString("\n## Slack 会话上下文（调度器自动更新）\n\n")
-	b.WriteString("以下块随每条入站 Slack 消息刷新。**用户消息正文**不经修改、原样传给 Provider。\n\n")
 	b.WriteString(slackContextStartMarker)
 	b.WriteString("\n")
 	b.WriteString(inner)

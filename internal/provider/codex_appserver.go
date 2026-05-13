@@ -20,6 +20,14 @@ import (
 	"github.com/perrornet/slacksched/internal/config"
 )
 
+// Full-access sandbox: thread/start uses SandboxMode (kebab-case); turn/start sandboxPolicy.type
+// uses separate enum spellings — see openai/codex codex-rs/app-server-protocol/schema/json/v2/
+// ThreadStartParams.json (definitions.SandboxMode) and TurnStartParams.json (definitions.SandboxPolicy).
+const (
+	codexThreadStartSandboxDangerFullAccess    = "danger-full-access" // thread/start "sandbox"
+	codexTurnSandboxPolicyTypeDangerFullAccess = "dangerFullAccess"   // turn/start sandboxPolicy.type
+)
+
 type codexAppConn struct {
 	log       *slog.Logger
 	prof      config.ProviderProfile
@@ -40,6 +48,14 @@ type codexAppConn struct {
 
 	outputMu sync.Mutex
 	output   strings.Builder
+
+	// Non-final agent bubbles (Codex phase != final_answer); used only if the turn never
+	// emitted a final_answer item (older protocols).
+	agentMsgFallbackMu sync.Mutex
+	agentMsgFallback   string
+
+	codexTurnMetaMu     sync.Mutex
+	sawCodexFinalAnswer bool
 
 	turnErrMu sync.Mutex
 	turnErr   string
@@ -149,12 +165,13 @@ func startCodexAppServer(ctx context.Context, log *slog.Logger, prof config.Prov
 	tsCtx, cancel2 := context.WithTimeout(ctx, newSessTO)
 	defer cancel2()
 	res, err := c.request(tsCtx, "thread/start", map[string]any{
-		"model":                  nilIfEmpty(prof.Model),
-		"modelProvider":          nil,
-		"profile":                nil,
-		"cwd":                    absWorkspace,
-		"approvalPolicy":         nil,
-		"sandbox":                nil,
+		"model":         nilIfEmpty(prof.Model),
+		"modelProvider": nil,
+		"profile":       nil,
+		"cwd":           absWorkspace,
+		// Never elicit command/file/network approvals for this headless client (matches Cursor --yolo).
+		"approvalPolicy":         "never",
+		"sandbox":                codexThreadStartSandboxDangerFullAccess,
 		"config":                 nil,
 		"baseInstructions":       nil,
 		"developerInstructions":  nil,
@@ -226,6 +243,51 @@ func nilIfEmpty(s string) any {
 		return nil
 	}
 	return s
+}
+
+// recordCodexAgentMessage records assistant-visible text from item/completed agentMessage.
+// Only phase "final_answer" is sent to Slack; earlier phases are ignored unless no
+// final_answer arrives in the turn (then the last non-final bubble is a fallback).
+func (c *codexAppConn) recordCodexAgentMessage(text, phase string) {
+	if phase == "final_answer" {
+		c.codexTurnMetaMu.Lock()
+		c.sawCodexFinalAnswer = true
+		c.codexTurnMetaMu.Unlock()
+		c.outputMu.Lock()
+		c.output.Reset()
+		if text != "" {
+			c.output.WriteString(text)
+		}
+		c.outputMu.Unlock()
+		return
+	}
+	if text == "" {
+		return
+	}
+	c.agentMsgFallbackMu.Lock()
+	c.agentMsgFallback = text
+	c.agentMsgFallbackMu.Unlock()
+}
+
+func (c *codexAppConn) codexSlackFacingText() string {
+	c.outputMu.Lock()
+	out := strings.TrimSpace(c.output.String())
+	c.outputMu.Unlock()
+	c.codexTurnMetaMu.Lock()
+	sawFinal := c.sawCodexFinalAnswer
+	c.codexTurnMetaMu.Unlock()
+	if out == "" && !sawFinal {
+		c.agentMsgFallbackMu.Lock()
+		fb := strings.TrimSpace(c.agentMsgFallback)
+		c.agentMsgFallbackMu.Unlock()
+		if fb != "" {
+			out = fb
+		}
+	}
+	if out == "" {
+		out = "(no assistant text captured)"
+	}
+	return out
 }
 
 func (c *codexAppConn) drainStderr(r io.Reader) {
@@ -406,9 +468,8 @@ func (c *codexAppConn) handleLegacy(msg map[string]any) {
 	switch typ {
 	case "agent_message":
 		if t, _ := msg["message"].(string); t != "" {
-			c.outputMu.Lock()
-			c.output.WriteString(t)
-			c.outputMu.Unlock()
+			ph, _ := msg["phase"].(string)
+			c.recordCodexAgentMessage(t, ph)
 		}
 	case "task_complete":
 		c.signalTurn(turnFinished{aborted: false})
@@ -472,12 +533,9 @@ func (c *codexAppConn) handleRaw(method string, params map[string]any) {
 		it, _ := item["type"].(string)
 		if method == "item/completed" && it == "agentMessage" {
 			tx, _ := item["text"].(string)
-			if tx != "" {
-				c.outputMu.Lock()
-				c.output.WriteString(tx)
-				c.outputMu.Unlock()
-			}
-			if ph, _ := item["phase"].(string); ph == "final_answer" {
+			ph, _ := item["phase"].(string)
+			c.recordCodexAgentMessage(tx, ph)
+			if ph == "final_answer" {
 				c.signalTurn(turnFinished{aborted: false})
 			}
 		}
@@ -665,9 +723,18 @@ func (c *codexAppConn) runTurn(ctx context.Context, prompt string) (string, stri
 	c.outputMu.Lock()
 	c.output.Reset()
 	c.outputMu.Unlock()
+	c.agentMsgFallbackMu.Lock()
+	c.agentMsgFallback = ""
+	c.agentMsgFallbackMu.Unlock()
+	c.codexTurnMetaMu.Lock()
+	c.sawCodexFinalAnswer = false
+	c.codexTurnMetaMu.Unlock()
 
 	_, err := c.request(ctx, "turn/start", map[string]any{
 		"threadId": c.threadID,
+		"sandboxPolicy": map[string]any{
+			"type": codexTurnSandboxPolicyTypeDangerFullAccess,
+		},
 		"input": []map[string]any{
 			{"type": "text", "text": prompt},
 		},
@@ -701,13 +768,7 @@ func (c *codexAppConn) runTurn(ctx context.Context, prompt string) (string, stri
 	if em := c.getTurnErr(); em != "" {
 		return "", "", fmt.Errorf("%s", em)
 	}
-	c.outputMu.Lock()
-	out := strings.TrimSpace(c.output.String())
-	c.outputMu.Unlock()
-	if out == "" {
-		out = "(no assistant text captured)"
-	}
-	return out, "end_turn", nil
+	return c.codexSlackFacingText(), "end_turn", nil
 }
 
 func (c *codexAppConn) shutdownProcess() error {

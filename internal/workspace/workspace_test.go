@@ -9,12 +9,8 @@ import (
 
 func TestCreateSessionWorkspace(t *testing.T) {
 	root := t.TempDir()
-	tpl := filepath.Join(root, "tpl.md")
-	if err := os.WriteFile(tpl, []byte("# T\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	wsroot := filepath.Join(root, "w")
-	p, err := CreateSessionWorkspace(wsroot, "T1", "C1", "1234.5678", "abcd", tpl, "AGENTS.md", "", "", SessionBotIdentity{})
+	p, err := CreateSessionWorkspace(wsroot, "T1", "C1", "1234.5678", "abcd", "AGENTS.md", "", "", SessionBotIdentity{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +18,7 @@ func TestCreateSessionWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := BuildSchedulerAgentConstraintsMarkdown("AGENTS.md", "") + "\n# T\n" + SlackContextSectionHTMLComment("")
+	want := BuildSchedulerAgentConstraintsMarkdown("AGENTS.md", "") + "\n" + strings.TrimSpace(BuiltinAgentMarkdownFileIntro) + "\n" + SlackContextSectionHTMLComment("")
 	if string(b) != want {
 		t.Fatalf("got %q", b)
 	}
@@ -30,16 +26,12 @@ func TestCreateSessionWorkspace(t *testing.T) {
 
 func TestCreateSessionWorkspace_SlackMrkdwnGuide(t *testing.T) {
 	root := t.TempDir()
-	tpl := filepath.Join(root, "tpl.md")
-	if err := os.WriteFile(tpl, []byte("# T\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	guide := filepath.Join(root, "guide.md")
 	if err := os.WriteFile(guide, []byte("mrkdwn body\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	wsroot := filepath.Join(root, "w")
-	p, err := CreateSessionWorkspace(wsroot, "T1", "C1", "1234.5678", "abcd", tpl, "AGENTS.md", guide, "", SessionBotIdentity{})
+	p, err := CreateSessionWorkspace(wsroot, "T1", "C1", "1234.5678", "abcd", "AGENTS.md", guide, "", SessionBotIdentity{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,15 +63,11 @@ func TestSessionBotIdentity_agentMarkdownSection(t *testing.T) {
 
 func TestCreateSessionWorkspace_SessionBot(t *testing.T) {
 	root := t.TempDir()
-	tpl := filepath.Join(root, "tpl.md")
-	if err := os.WriteFile(tpl, []byte("# T\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	wsroot := filepath.Join(root, "w")
 	bot := SessionBotIdentity{
 		UserID: "U0BOT", BotID: "B0BOT", UserName: "bot", DisplayName: "Bot",
 	}
-	p, err := CreateSessionWorkspace(wsroot, "T1", "C1", "1234.5678", "abcd", tpl, "AGENTS.md", "", "", bot)
+	p, err := CreateSessionWorkspace(wsroot, "T1", "C1", "1234.5678", "abcd", "AGENTS.md", "", "", bot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,13 +83,9 @@ func TestCreateSessionWorkspace_SessionBot(t *testing.T) {
 
 func TestCreateSessionWorkspace_ContextAPISection(t *testing.T) {
 	root := t.TempDir()
-	tpl := filepath.Join(root, "tpl.md")
-	if err := os.WriteFile(tpl, []byte("# T\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	wsroot := filepath.Join(root, "w")
 	apiBase := "http://127.0.0.1:19847"
-	p, err := CreateSessionWorkspace(wsroot, "T1", "C1", "1234.5678", "abcd", tpl, "AGENTS.md", "", apiBase, SessionBotIdentity{})
+	p, err := CreateSessionWorkspace(wsroot, "T1", "C1", "1234.5678", "abcd", "AGENTS.md", "", apiBase, SessionBotIdentity{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +94,7 @@ func TestCreateSessionWorkspace_ContextAPISection(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(b)
-	if !strings.Contains(got, "# 面向 ACP Provider 的会话工作区约束") || !strings.Contains(got, "schduler-slack-context:start") {
+	if !strings.Contains(got, "# 当前会话约束") || !strings.Contains(got, "schduler-slack-context:start") {
 		t.Fatalf("expected generated constraints and slack context block, got %q", got)
 	}
 	if !strings.Contains(got, "## Slack 线程上下文 HTTP API") || !strings.Contains(got, apiBase) || !strings.Contains(got, "自动生成") {
