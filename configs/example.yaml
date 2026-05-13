@@ -50,9 +50,11 @@ slack:
 scheduler:
   # 每 Slack 线程一份工作区目录的根路径（相对路径相对进程工作目录）
   workspaces_root: .scheduler/workspaces
-  # Agent 说明正文（constraints 之后、与首条 Prompt 同源）由程序内置，不可通过配置覆盖
-  # 合并后与调度器生成段一起写入工作区根目录的 agent 文件名：
+  # 工作区里的 Agent 说明文件名。该文件由调度器生成。
   agent_md_filename: AGENTS.md
+  # 可选：把这个 Markdown 文件内容追加到工作区 AGENTS.md 末尾。
+  # 适合放“所有会话都继承的稳定规则”；不要重复线程上下文、约束或 Context API 用法。
+  # agent_md_append_path: docs/agent-extra.md
   # 可选：复制到工作区 references/slack-mrkdwn-guide.md，给出站 mrkdwn 参考
   # slack_mrkdwn_guide_path: docs/slack-mrkdwn-guide.md
   # 可选：每个新 session workspace 创建后、Provider 启动前执行的 bash 命令。
@@ -61,11 +63,11 @@ scheduler:
   # SCHDULER_SESSION_CHANNEL_ID、SCHDULER_SESSION_ROOT_THREAD_TS
   # pre_session_command: 'printf "session initialized\n" > .session-init'
 
-  # Provider 进程空闲超过此时长后关闭（与 session_idle_timeout 取较短者参与判定）
+  # Provider 进程空闲超过此时长后关闭（与 session_idle_timeout 取较短者生效）
   provider_idle_timeout: 12h
   # 关闭 Provider 时先 SIGTERM，等待多久再 SIGKILL
   provider_shutdown_timeout: 10s
-  # 会话级空闲超时，常与 provider_idle_timeout 对齐；单位可用 h、m、s
+  # 会话级空闲超时。常与 provider_idle_timeout 对齐；单位可用 h、m、s
   session_idle_timeout: 4h
   # 单次 Prompt 调用的最长等待时间
   prompt_timeout: 2h
@@ -75,7 +77,7 @@ scheduler:
 providers:
   # 默认使用的 profile 名，必须在 profiles 下存在
   default: codex
-  # 另可选用 transport: acp（留空 transport 等价于 acp）：长连接标准输入输出 JSON-RPC
+  # transport 留空时等价于 acp（长连接标准输入输出 JSON-RPC）
   profiles:
     # transport: codex_app_server — codex app-server --listen stdio://，JSON-RPC thread/turn
     codex:

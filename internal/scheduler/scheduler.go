@@ -218,6 +218,7 @@ func (w *worker) run() {
 					w.key.TeamID, w.key.ChannelID, w.key.RootThreadTS,
 					suffix,
 					w.s.cfg.Scheduler.AgentMDFilename,
+					w.s.cfg.Scheduler.AgentMDAppendPath,
 					w.s.cfg.Scheduler.SlackMrkdwnGuidePath,
 					w.s.ctxBaseURL,
 					w.s.sessionBot,

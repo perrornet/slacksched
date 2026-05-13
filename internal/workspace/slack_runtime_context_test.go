@@ -54,7 +54,7 @@ func TestSlackRuntimeContext_BuildMarkdownBody(t *testing.T) {
 	}
 	c2 := SlackRuntimeContext{ChannelID: "D1", IsIM: true, TeamID: "T", RootThreadTS: "a", TriggerMessageTS: "b"}
 	got2 := c2.BuildMarkdownBody()
-	if !strings.Contains(got2, "私信") {
+	if !strings.Contains(got2, "`channel_id`: `D1`") || strings.Contains(got2, "频道名称") {
 		t.Fatalf("%q", got2)
 	}
 }

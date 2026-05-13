@@ -8,14 +8,15 @@ import (
 	"strings"
 )
 
-// CreateSessionWorkspace builds a unique directory under workspacesRoot and
-// writes agent markdown: code-generated constraints, then BuiltinAgentMarkdownFileIntro
-// (not user-configurable), then the Slack context placeholder block and optional sections.
+// CreateSessionWorkspace builds a unique directory under workspacesRoot and writes AGENTS.md in a
+// fixed order: generated constraints, built-in intro, Slack context placeholder block, optional
+// bot identity, optional Context API section, then optional user appendix.
+// If agentMDAppendSrc is non-empty, that markdown file is appended to AGENTS.md after generated sections.
 // If slackMrkdwnGuideSrc is non-empty, that file is copied into the workspace
 // as references/slack-mrkdwn-guide.md.
 // sessionBot is written into AGENTS.md when UserID is non-empty (once per new workspace).
 // When contextAPIBaseURL is non-empty, a Slack context HTTP API section is appended after the session bot block.
-func CreateSessionWorkspace(workspacesRoot, teamID, channelID, rootThreadTS, uniqueSuffix, agentFilename, slackMrkdwnGuideSrc, contextAPIBaseURL string, sessionBot SessionBotIdentity) (string, error) {
+func CreateSessionWorkspace(workspacesRoot, teamID, channelID, rootThreadTS, uniqueSuffix, agentFilename, agentMDAppendSrc, slackMrkdwnGuideSrc, contextAPIBaseURL string, sessionBot SessionBotIdentity) (string, error) {
 	base, err := filepath.Abs(workspacesRoot)
 	if err != nil {
 		return "", fmt.Errorf("workspaces root: %w", err)
@@ -44,6 +45,25 @@ func CreateSessionWorkspace(workspacesRoot, teamID, channelID, rootThreadTS, uni
 	}
 	if doc := BuildAgentContextAPISectionMarkdown(contextAPIBaseURL); doc != "" {
 		b.WriteString(doc)
+	}
+	appendSrc := strings.TrimSpace(agentMDAppendSrc)
+	if appendSrc != "" {
+		appendBody, err := os.ReadFile(appendSrc)
+		if err != nil {
+			return "", fmt.Errorf("read agent md append: %w", err)
+		}
+		extra := strings.TrimSpace(string(appendBody))
+		if extra != "" {
+			if b.Len() > 0 && !strings.HasSuffix(b.String(), "\n\n") {
+				if strings.HasSuffix(b.String(), "\n") {
+					b.WriteString("\n")
+				} else {
+					b.WriteString("\n\n")
+				}
+			}
+			b.WriteString(extra)
+			b.WriteString("\n")
+		}
 	}
 	if err := os.WriteFile(agentPath, []byte(b.String()), 0o644); err != nil {
 		return "", fmt.Errorf("write agent md: %w", err)

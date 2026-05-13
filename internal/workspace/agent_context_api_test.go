@@ -26,7 +26,7 @@ func TestBuildAgentContextAPISectionMarkdown_trimsSlash(t *testing.T) {
 
 func TestBuildAgentContextAPISectionMarkdown_allowlistFromBinary(t *testing.T) {
 	s := BuildAgentContextAPISectionMarkdown("http://127.0.0.1:9")
-	for _, needle := range []string{"自动生成", "conversations.replies", "users.info", "files.info", "/v1/slack/web-api/"} {
+	for _, needle := range []string{"SCHDULER_CONTEXT_API_TOKEN", "conversations.replies", "users.info", "files.info", "/v1/slack/web-api/"} {
 		if !strings.Contains(s, needle) {
 			t.Fatalf("missing %q in doc", needle)
 		}

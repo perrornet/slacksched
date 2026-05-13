@@ -18,7 +18,8 @@ const BuiltinAgentMarkdownTemplate = `
 `
 
 // BuiltinAgentMarkdownFileIntro is embedded in each new session AGENTS.md after the constraints
-// block. It has no placeholders; runtime-filled opening text is sessionBootstrapBody only.
+// block and before the runtime-updated Slack context block. It has no placeholders; runtime-filled
+// opening text is sessionBootstrapBody only.
 const BuiltinAgentMarkdownFileIntro = `## 会话说明
 
 你在为本 Slack 会话工作。环境与线程信息见下方「Slack 会话上下文」（随消息刷新）；操作范围见「当前会话约束」。**首条具体任务与频道快照由调度器在会话第一条 provider 消息中发送**，请以该条为准。

@@ -81,6 +81,7 @@ func (s *SlackConfig) TurnEnvelopeEnabled() bool {
 type SchedulerConfig struct {
 	WorkspacesRoot          string   `yaml:"workspaces_root"`
 	AgentMDFilename         string   `yaml:"agent_md_filename"`
+	AgentMDAppendPath       string   `yaml:"agent_md_append_path"`
 	PreSessionCommand       string   `yaml:"pre_session_command"`
 	ProviderIdleTimeout     Duration `yaml:"provider_idle_timeout"`
 	ProviderShutdownTimeout Duration `yaml:"provider_shutdown_timeout"`
@@ -195,6 +196,12 @@ func (c *Config) Validate() error {
 	}
 	if strings.TrimSpace(c.Scheduler.AgentMDFilename) == "" {
 		return fmt.Errorf("scheduler.agent_md_filename is required")
+	}
+	appendPath := strings.TrimSpace(c.Scheduler.AgentMDAppendPath)
+	if appendPath != "" {
+		if st, err := os.Stat(appendPath); err != nil || st.IsDir() {
+			return fmt.Errorf("scheduler.agent_md_append_path must be a readable file: %s", appendPath)
+		}
 	}
 	guide := strings.TrimSpace(c.Scheduler.SlackMrkdwnGuidePath)
 	if guide != "" {

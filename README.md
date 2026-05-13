@@ -57,12 +57,33 @@ Default config path: [`configs/example.yaml`](configs/example.yaml). Override wi
 
 Names can be overridden in YAML: `slack.bot_token_env`, `slack.app_token_env`.
 
+### Workspace and `AGENTS.md`
+
+Each Slack thread gets its own workspace under `scheduler.workspaces_root`.
+
+- `scheduler.agent_md_filename`: the generated instruction file name inside each workspace.
+- `scheduler.agent_md_append_path`: optional Markdown file appended to generated `AGENTS.md` after scheduler-owned sections. Use this for stable global rules; see [docs/agent-extra.md](docs/agent-extra.md).
+- `scheduler.slack_mrkdwn_guide_path`: optional file copied to `references/slack-mrkdwn-guide.md`.
+- `scheduler.pre_session_command`: optional shell hook run after workspace creation and before the provider starts.
+
+Generated `AGENTS.md` structure is:
+
+1. scheduler-owned constraints
+2. built-in session intro
+3. runtime-updated Slack context block
+4. optional bot identity section
+5. optional Context HTTP API section
+6. optional user appendix from `agent_md_append_path`
+
+Do not use `agent_md_append_path` to replace runtime context, generated constraints, or the Context API usage section. Those are owned by the scheduler and may be refreshed between turns.
+
 ### Slack routing & threads
 
 - **DMs**: only if the sender’s Slack user ID is listed in `slack.allowed_dm_user_ids`.
 - **Channels**: optional `allowed_channel_ids`; if empty, channels are allowed subject to `require_mention_in_channels`.
 - **Thread follow-ups**: once a session exists, further messages in the thread need no new mention.
 - **`thread_replies_in_prompt`**: when `true`, loads `conversations.replies` and prepends a transcript (needs history scopes + reinstall).
+- **`context_api_listen`**: when non-empty, starts a local read-only HTTP API so the agent can fetch current-thread context on demand.
 
 Info-level logs: `slack_inbound`, `slack_outbound`, `slack_inbound_skipped` (filtered).
 
@@ -111,6 +132,12 @@ go test ./...
 ```
 
 If checksum lookup hangs: `GOSUMDB=off GOPROXY=direct go mod tidy`.
+
+If your shell exports a mismatched `GOROOT`, use:
+
+```bash
+env -u GOROOT go test ./...
+```
 
 ---
 
