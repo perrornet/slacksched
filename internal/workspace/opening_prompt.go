@@ -12,6 +12,7 @@ const BuiltinAgentMarkdownTemplate = `
 - 频道名称：<slack-channel-name>
 - 用户 ID：<mention-user-id>
 
+<thread-prior-transcript-block>
 **用户本条消息**：
 
 <mention-user-message>
@@ -28,7 +29,8 @@ const BuiltinAgentMarkdownFileIntro = `## 会话说明
 // BuildSessionOpeningPrompt fills BuiltinAgentMarkdownTemplate for the first provider prompt.
 // userMessage is normally scheduler Job.Text (e.g. turn-enveloped).
 //
-// Placeholders: <slack-channel-id>, <slack-channel-name>, <mention-user-id>, <mention-user-message>.
+// Placeholders: <slack-channel-id>, <slack-channel-name>, <mention-user-id>,
+// <thread-prior-transcript-block>, <mention-user-message>.
 // If the template body omits <mention-user-message>, userMessage is appended after the body.
 func BuildSessionOpeningPrompt(sc SlackRuntimeContext, userID, userMessage string) string {
 	return buildSessionOpeningFromTemplate(BuiltinAgentMarkdownTemplate, sc, userID, userMessage)
@@ -45,13 +47,25 @@ func buildSessionOpeningFromTemplate(raw string, sc SlackRuntimeContext, userID,
 	}
 	uid := strings.TrimSpace(userID)
 	msg := strings.TrimRight(userMessage, "\n\r")
+	transcriptBlock := ""
+	if ts := strings.TrimSpace(sc.ThreadPriorTranscript); ts != "" {
+		transcriptBlock = "### 线程内先前消息（不含当前待答消息）\n\n> " + strings.ReplaceAll(ts, "\n", "\n> ") + "\n\n"
+	}
 	repl := strings.NewReplacer(
 		"<slack-channel-id>", strings.TrimSpace(sc.ChannelID),
 		"<slack-channel-name>", chName,
 		"<mention-user-id>", uid,
+		"<thread-prior-transcript-block>", transcriptBlock,
 		"<mention-user-message>", msg,
 	)
 	out := strings.TrimSpace(repl.Replace(raw))
+	if transcriptBlock != "" && !strings.Contains(raw, "<thread-prior-transcript-block>") {
+		if out != "" {
+			out += "\n\n" + strings.TrimRight(transcriptBlock, "\n")
+		} else {
+			out = strings.TrimRight(transcriptBlock, "\n")
+		}
+	}
 	if !strings.Contains(raw, "<mention-user-message>") {
 		if out != "" {
 			out = out + "\n\n" + msg
